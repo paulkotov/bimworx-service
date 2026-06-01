@@ -1,0 +1,25 @@
+{
+  "name": "bimworx-service",
+  "version": "0.1.0",
+  "description": "Cloud-based service for Revit model data, engineering calculations, and 3D visualizations",
+  "private": true,
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "node --watch src/index.js",
+    "start": "node src/index.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "bim",
+    "revit",
+    "autodesk",
+    "aps"
+  ],
+  "license": "UNLICENSED",
+  "dependencies": {
+    "express": "^5.2.1"
+  }
+}
