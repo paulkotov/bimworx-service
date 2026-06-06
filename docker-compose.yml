@@ -5,10 +5,10 @@ services:
       dockerfile: Dockerfile
     container_name: bimworx-service
     ports:
-      - "${PORT:-3000}:3000"
+      - "${PORT:-2504}:2504"
     env_file:
       - .env
     environment:
       NODE_ENV: production
-      PORT: 3000
+      PORT: 2504
     restart: unless-stopped
