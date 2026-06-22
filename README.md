@@ -1,6 +1,6 @@
 # bimworx-service
 
-A service for managing Revit/CAD file data, loaded in cloud. The Node server discovers the latest file, uploads it to
+A service for viewing and managing Revit/CAD file data, loaded in cloud. The Node server discovers the latest file, uploads it to
 Autodesk OSS, translates it to SVF2, and streams progress to the browser
 through Socket.IO.
 
