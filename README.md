@@ -1,26 +1,85 @@
-# Cloud Revit Data Manager
+# bimworx-service
 
-A cloud-based service designed to manage Revit model data, perform automated engineering calculations, and render interactive 3D visualizations.
+A service for viewing and managing Revit/CAD file data, loaded in cloud. The Node server discovers the latest file, uploads it to
+Autodesk OSS, translates it to SVF2, and streams progress to the browser
+through Socket.IO.
 
-## 🎯 Project Overview
+There is no admin UI: open `/` and you see the model.
 
-This platform bridges the gap between BIM data extraction, cloud storage, and web-based interaction. By integrating directly with cloud environments, it eliminates manual file handling, automates complex calculations, and provides stakeholders with real-time visual insights inside a browser.
+## What's inside
 
-## ✨ Key Features
+```
+Browser ──GET /──▶  viewer page (Autodesk Viewer 7 + socket.io-client)
+                   │
+                   │ GET /api/model      (also lazy-triggers a sync)
+                   ▼
+                Express
+                   │
+        Google Drive  ─list & download─▶  Autodesk OSS  ─translate─▶  Model Derivative
+                   │                                                       │
+                   │              ◀──────────── extraction.finished ───────┘
+                   ▼
+              model.store ──change──▶ Socket.IO ──▶ Browser ──▶ Viewer loads URN
+```
 
-* **BIM Data Management**: Extract, filter, and sync Revit model parameters directly via cloud workflows.
-* **Automated Calculations**: Run instant geometric, material, or structural logic checks on live model data.
-* **Web Visualizations**: Render lightweight, interactive 3D models directly in the user interface.
-* **Cloud Sync**: Secure, real-time access to models hosted in cloud repositories.
+Architecture deep-dive: [`docs/adsk-services.md`](docs/adsk-services.md).
 
-## 🏗 Tech Stack
+## Tech stack
 
-* **Backend**: Node.js — handling high-concurrency API requests, data pipelines, and calculations.
-* **Frontend**: React — driving a responsive, state-managed dashboard and UI components.
-* **BIM Integration**: Autodesk SDK — powering model translation, property parsing, and cloud viewing.
+* **Node.js 20+**, ES modules.
+* **Express 5**, **Socket.IO 4**.
+* `@aps_sdk/authentication`, `@aps_sdk/oss`, `@aps_sdk/model-derivative`.
+* Google Drive REST v3 via native `fetch` (no `googleapis` dependency).
+* `@ngrok/ngrok` (optional) for local webhook callbacks.
 
-## 🚀 Getting Started
+## Getting started
 
-1. **Environment**: Clone the repository and create a `.env` file with your Autodesk credentials.
-2. **Installation**: Run `npm install` in both the root and client directories.
-3. **Development**: Start the backend and frontend services using `npm run dev`.
+1. Create an APS app at <https://aps.autodesk.com/myapps> with at least
+   **Data Management API** and **Model Derivative API** enabled.
+2. Create a Google API key with the **Drive API** enabled
+   (<https://console.cloud.google.com/apis/credentials>).
+3. Share a Drive folder as **"Anyone with the link can view"** and drop one or
+   more `.rvt` (or `.rfa`, `.nwd`, `.nwc`, `.ifc`) files into it.
+4. ```bash
+   cp .env.example .env
+   # Fill in: APS_CLIENT_ID, APS_CLIENT_SECRET,
+   #          GOOGLE_DRIVE_FOLDER_ID, GOOGLE_API_KEY
+   npm install
+   npm install --include=optional   # only if you need ngrok for local webhooks
+   npm run dev
+   ```
+5. Open <http://localhost:2504>. The page will:
+   * Look up the latest file in the folder.
+   * Show progress (`download` → `upload` → `translate` → `translating` → `ready`).
+   * Auto-load the model in the Autodesk Viewer.
+
+Subsequent opens are instant — the cached translation is reused until the
+upstream Drive file changes (`modifiedTime` differs).
+
+## Endpoints
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET`  | `/` | Single-page viewer (static). |
+| `GET`  | `/api/health` | Liveness probe. |
+| `GET`  | `/api/auth/token` | Viewer-scoped 2-legged token (`viewables:read`). |
+| `GET`  | `/api/model` | Current model snapshot; lazily triggers a sync. |
+| `POST` | `/api/model/sync?force=true` | Force a re-sync (admin / cron). |
+| `POST` | `/api/webhooks/translation-complete` | APS-internal callback (HMAC-verified). |
+
+## Realtime
+
+Socket.IO at `/socket.io`. The server emits a single event:
+
+* `model:update` → full `ModelSnapshot` (sent on connect and on every state change).
+
+## Scripts
+
+| Script | Description |
+|---|---|
+| `npm run dev` | Start with `node --watch`. |
+| `npm start`   | Production start. |
+
+## License
+
+UNLICENSED — internal project.
