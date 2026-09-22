@@ -1,25 +1,31 @@
 # bimworx-service
 
-A service for viewing and managing Revit/CAD file data, loaded in cloud. The Node server discovers the latest file, uploads it to
-Autodesk OSS, translates it to SVF2, and streams progress to the browser
-through Socket.IO.
+A cloud service for viewing and analyzing Revit/CAD models. Users sign in
+with Google, the service reads their Revit files from Google Drive, uploads
+them to Autodesk Platform Services (APS), translates them to SVF2, and streams
+progress and analysis results to the browser over Socket.IO.
 
-There is no admin UI: open `/` and you see the model.
+The frontend is a server-rendered shell (EJS) that today boots a small
+vanilla-JS client and is being migrated to a React app.
 
-## What's inside
+> **Status:** early scaffolding. Only the server shell, the home page, and
+> `GET /api/health` are implemented today. Everything under
+> [Roadmap](#roadmap) is planned and not wired up yet.
+
+## Architecture
 
 ```
-Browser ──GET /──▶  viewer page (Autodesk Viewer 7 + socket.io-client)
+Browser ──GET /──▶  EJS shell (Autodesk Viewer 7 + socket.io-client)
                    │
-                   │ GET /api/model      (also lazy-triggers a sync)
+                   │ Google sign-in ──▶ session
                    ▼
                 Express
                    │
-        Google Drive  ─list & download─▶  Autodesk OSS  ─translate─▶  Model Derivative
-                   │                                                       │
-                   │              ◀──────────── extraction.finished ───────┘
+   Google Drive (user's files) ─download─▶ APS OSS ─translate─▶ Model Derivative
+                   │                                                    │
+                   │              ◀──────────── analysis finished ──────┘
                    ▼
-              model.store ──change──▶ Socket.IO ──▶ Browser ──▶ Viewer loads URN
+              model state ──change──▶ Socket.IO ──▶ Browser ──▶ Viewer loads URN
 ```
 
 Architecture deep-dive: [`docs/adsk-services.md`](docs/adsk-services.md).
@@ -27,51 +33,47 @@ Architecture deep-dive: [`docs/adsk-services.md`](docs/adsk-services.md).
 ## Tech stack
 
 * **Node.js 20+**, ES modules.
-* **Express 5**, **Socket.IO 4**.
+* **Express 5** with **EJS** views (React app to be mounted into the shell).
+* **Socket.IO 4** for realtime progress/analysis updates.
+* **Google OAuth** (sign-in + Drive access) via `@googleapis/drive`.
 * `@aps_sdk/authentication`, `@aps_sdk/oss`, `@aps_sdk/model-derivative`.
-* Google Drive REST v3 via native `fetch` (no `googleapis` dependency).
-* `@ngrok/ngrok` (optional) for local webhook callbacks.
 
 ## Getting started
 
-1. Create an APS app at <https://aps.autodesk.com/myapps> with at least
+1. Create an APS app at <https://aps.autodesk.com/myapps> with the
    **Data Management API** and **Model Derivative API** enabled.
-2. Create a Google API key with the **Drive API** enabled
-   (<https://console.cloud.google.com/apis/credentials>).
-3. Share a Drive folder as **"Anyone with the link can view"** and drop one or
-   more `.rvt` (or `.rfa`, `.nwd`, `.nwc`, `.ifc`) files into it.
-4. ```bash
+2. Create a Google OAuth client (**"Web application"**) at
+   <https://console.cloud.google.com/apis/credentials> and enable the
+   **Drive API**. Add `http://localhost:2504/api/auth/google/callback` as an
+   authorized redirect URI.
+3. Configure and run:
+   ```bash
    cp .env.example .env
-   # Fill in: APS_CLIENT_ID, APS_CLIENT_SECRET,
-   #          GOOGLE_DRIVE_FOLDER_ID, GOOGLE_API_KEY
+   # Fill in: SESSION_SECRET,
+   #          GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET,
+   #          APS_CLIENT_ID, APS_CLIENT_SECRET
    npm install
-   npm install --include=optional   # only if you need ngrok for local webhooks
    npm run dev
    ```
-5. Open <http://localhost:2504>. The page will:
-   * Look up the latest file in the folder.
-   * Show progress (`download` → `upload` → `translate` → `translating` → `ready`).
-   * Auto-load the model in the Autodesk Viewer.
-
-Subsequent opens are instant — the cached translation is reused until the
-upstream Drive file changes (`modifiedTime` differs).
+4. Open <http://localhost:2504>.
 
 ## Endpoints
 
-| Method | Path | Purpose |
-|---|---|---|
-| `GET`  | `/` | Single-page viewer (static). |
-| `GET`  | `/api/health` | Liveness probe. |
-| `GET`  | `/api/auth/token` | Viewer-scoped 2-legged token (`viewables:read`). |
-| `GET`  | `/api/model` | Current model snapshot; lazily triggers a sync. |
-| `POST` | `/api/model/sync?force=true` | Force a re-sync (admin / cron). |
-| `POST` | `/api/webhooks/translation-complete` | APS-internal callback (HMAC-verified). |
+| Method | Path | Purpose | Status |
+|---|---|---|---|
+| `GET`  | `/` | Server-rendered viewer shell (EJS). | ✅ implemented |
+| `GET`  | `/api/health` | Liveness probe. | ✅ implemented |
+| `GET`  | `/api/auth/google` | Start Google OAuth sign-in. | 🚧 planned |
+| `GET`  | `/api/auth/google/callback` | OAuth callback → session. | 🚧 planned |
+| `GET`  | `/api/auth/token` | Viewer-scoped APS token (`viewables:read`). | ✅ implemented |
+| `GET`  | `/api/model` | Current model snapshot; lazily triggers a sync. | 🚧 planned |
+| `POST` | `/api/model/sync` | Force a re-sync / re-analysis. | 🚧 planned |
 
 ## Realtime
 
-Socket.IO at `/socket.io`. The server emits a single event:
-
-* `model:update` → full `ModelSnapshot` (sent on connect and on every state change).
+Socket.IO is served at `/socket.io`. The server accepts connections today; the
+`model:update` event (full model snapshot) will be emitted once the analysis
+pipeline lands.
 
 ## Scripts
 
@@ -79,6 +81,14 @@ Socket.IO at `/socket.io`. The server emits a single event:
 |---|---|
 | `npm run dev` | Start with `node --watch`. |
 | `npm start`   | Production start. |
+
+## Roadmap
+
+* Google OAuth sign-in + session middleware.
+* Per-user Google Drive file discovery/download.
+* APS pipeline: OSS upload → Model Derivative translation (SVF2) → analysis.
+* `model:update` realtime snapshots over Socket.IO.
+* React app mounted into the EJS shell.
 
 ## License
 
