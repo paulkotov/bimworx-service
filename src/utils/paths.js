@@ -6,3 +6,4 @@ export const resolveDirname = (importMetaUrl) =>
 
 export const projectSrcDir = path.dirname(resolveDirname(import.meta.url));
 export const publicDir = path.join(projectSrcDir, 'public');
+export const viewsDir = path.join(projectSrcDir, 'views');
