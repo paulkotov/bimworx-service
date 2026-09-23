@@ -1,0 +1,114 @@
+:root {
+  color-scheme: light;
+  --color-bg: #f4f5f7;
+  --color-card: #ffffff;
+  --color-text: #111827;
+  --color-text-soft: #6b7280;
+  --color-accent: #0a66c2;
+  --color-error: #b00020;
+  --shadow-card: 0 10px 30px rgba(15, 23, 42, 0.12);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue',
+    Arial, sans-serif;
+  color: var(--color-text);
+  background: var(--color-bg);
+}
+
+#aps-viewer {
+  position: absolute;
+  inset: 0;
+  background: var(--color-bg);
+}
+
+#status {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(244, 245, 247, 0.85);
+  backdrop-filter: blur(6px);
+  z-index: 10;
+  transition: opacity 0.2s ease;
+}
+
+#status[hidden] {
+  display: none;
+}
+
+.status__card {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  padding: 24px 28px;
+  background: var(--color-card);
+  border-radius: 14px;
+  box-shadow: var(--shadow-card);
+  min-width: min(420px, 92vw);
+  max-width: 560px;
+}
+
+.status__spinner {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  border: 3px solid #e5e7eb;
+  border-top-color: var(--color-accent);
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+
+.status__spinner[hidden] {
+  display: none;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.status__text {
+  min-width: 0;
+}
+
+.status__title {
+  margin: 0 0 4px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.status__message {
+  margin: 0;
+  font-size: 14px;
+  color: var(--color-text-soft);
+}
+
+.status__source {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--color-text-soft);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
+    'Courier New', monospace;
+  word-break: break-all;
+}
+
+.status__source[hidden] {
+  display: none;
+}
+
+#status.is-error .status__title {
+  color: var(--color-error);
+}
