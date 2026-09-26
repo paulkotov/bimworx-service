@@ -1,0 +1,21 @@
+<header class="app-header">
+  <a class="app-header__brand" href="<%= authenticated ? '/hubs' : '/login' %>">BimWorx</a>
+  <nav class="app-header__nav" aria-label="Main">
+    <% if (authenticated) { %>
+      <a
+        class="app-header__link<%= typeof activeNav !== 'undefined' && activeNav === 'hubs' ? ' is-active' : '' %>"
+        href="/hubs"
+      >Hubs</a>
+      <a
+        class="app-header__link<%= typeof activeNav !== 'undefined' && activeNav === 'viewer' ? ' is-active' : '' %>"
+        href="/"
+      >Viewer</a>
+      <a class="app-header__link" href="<%= logoutUrl %>">Sign out</a>
+    <% } else { %>
+      <a
+        class="app-header__link<%= typeof activeNav !== 'undefined' && activeNav === 'login' ? ' is-active' : '' %>"
+        href="<%= loginUrl %>"
+      >Login</a>
+    <% } %>
+  </nav>
+</header>

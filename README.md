@@ -8,9 +8,9 @@ progress and analysis results to the browser over Socket.IO.
 The frontend is a server-rendered shell (EJS) that today boots a small
 vanilla-JS client and is being migrated to a React app.
 
-> **Status:** early scaffolding. Only the server shell, the home page, and
-> `GET /api/health` are implemented today. Everything under
-> [Roadmap](#roadmap) is planned and not wired up yet.
+> **Status:** early scaffolding. The server shell, home page, `GET /api/health`,
+> APS 3-legged login, and hubs/projects listing are implemented today.
+> Google OAuth and model sync remain planned — see [Roadmap](#roadmap).
 
 ## Architecture
 
@@ -51,11 +51,31 @@ Architecture deep-dive: [`docs/adsk-services.md`](docs/adsk-services.md).
    cp .env.example .env
    # Fill in: SESSION_SECRET,
    #          GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET,
-   #          APS_CLIENT_ID, APS_CLIENT_SECRET
+   #          APS_CLIENT_ID, APS_CLIENT_SECRET, APS_CALLBACK_URL
    npm install
    npm run dev
    ```
 4. Open <http://localhost:2504>.
+
+### Autodesk Construction Cloud (ACC)
+
+To list hubs and projects via the Data Management API:
+
+1. On your APS app at <https://aps.autodesk.com/myapps>, register the callback
+   `http://localhost:2504/api/auth/aps/callback` and enable the **Data
+   Management API** (Model Derivative is still required for translation).
+   Autodesk 3-legged login requests OAuth scopes `data:read`, `openid`, and
+   `user-profile:read` (must be allowed for the APS app / user consent).
+2. In ACC **Account Admin**, provision the same APS app as a **Custom
+   Integration** on the account that owns the hubs you expect to see.
+3. Set `SESSION_SECRET`, `APS_CLIENT_ID`, `APS_CLIENT_SECRET`, and
+   `APS_CALLBACK_URL` in `.env` (see `.env.example`).
+4. Sign in with APS: open <http://localhost:2504/api/auth/aps/login>, complete
+   Autodesk login, then call `GET /api/hubs` (browser or API client with the
+   session cookie).
+
+If `/api/hubs` returns an empty list after a successful login, the usual cause
+is a missing **Custom Integration** on the ACC account—not an application bug.
 
 ## Endpoints
 
@@ -65,7 +85,13 @@ Architecture deep-dive: [`docs/adsk-services.md`](docs/adsk-services.md).
 | `GET`  | `/api/health` | Liveness probe. | ✅ implemented |
 | `GET`  | `/api/auth/google` | Start Google OAuth sign-in. | 🚧 planned |
 | `GET`  | `/api/auth/google/callback` | OAuth callback → session. | 🚧 planned |
-| `GET`  | `/api/auth/token` | Viewer-scoped APS token (`viewables:read`). | ✅ implemented |
+| `GET`  | `/api/auth/token` | Viewer-scoped APS token (2-legged, `viewables:read`). | ✅ implemented |
+| `GET`  | `/api/auth/aps/login` | Start APS 3-legged OAuth (ACC / BIM 360). | ✅ implemented |
+| `GET`  | `/api/auth/aps/callback` | APS OAuth callback → session. | ✅ implemented |
+| `GET`  | `/api/auth/aps/logout` | Clear APS session. | ✅ implemented |
+| `GET`  | `/api/auth/me` | Current session / APS auth status. | ✅ implemented |
+| `GET`  | `/api/hubs` | List ACC hubs for the signed-in user. | ✅ implemented |
+| `GET`  | `/api/hubs/:hubId/projects` | List projects in a hub. | ✅ implemented |
 | `GET`  | `/api/model` | Current model snapshot; lazily triggers a sync. | 🚧 planned |
 | `POST` | `/api/model/sync` | Force a re-sync / re-analysis. | 🚧 planned |
 

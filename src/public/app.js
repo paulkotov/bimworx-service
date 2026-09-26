@@ -140,12 +140,29 @@
     initRealtime();
     const ready = await initViewer();
     if (!ready) return;
+
+    const signedIn = Boolean(window.__APP_CONFIG__?.user);
+    if (!signedIn) {
+      showStatus({
+        status: 'failed',
+        error: 'Sign in with Autodesk to continue — open /hubs',
+      });
+      statusSource.hidden = false;
+      statusSource.innerHTML = '<a href="/hubs">Go to ACC hubs / Sign in</a>';
+      return;
+    }
+
     try {
       const snapshot = await fetchJson('/api/model');
       handleSnapshot(snapshot);
     } catch (error) {
       console.error('[bootstrap] failed to fetch model state:', error);
-      showStatus({ status: 'failed', error: error.message });
+      showStatus({
+        status: 'failed',
+        error: 'Model sync is not available yet. You can still browse ACC hubs.',
+      });
+      statusSource.hidden = false;
+      statusSource.innerHTML = '<a href="/hubs">Open ACC hubs</a>';
     }
   };
 
