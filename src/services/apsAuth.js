@@ -1,5 +1,6 @@
 import { AuthenticationClient, Scopes } from '@aps_sdk/authentication';
 import { env } from '../config/env.js';
+import { createHttpError, sanitizeApsError } from '../utils/httpError.js';
 
 const authClient = new AuthenticationClient();
 
@@ -15,10 +16,11 @@ export const getViewerToken = async () => {
   const { clientId, clientSecret } = env.aps;
 
   if (!clientId || !clientSecret) {
-    const err = new Error('APS credentials are not configured');
-    err.status = 503;
-    err.publicMessage = 'Viewer authentication is not configured.';
-    throw err;
+    throw createHttpError(
+      503,
+      'Viewer authentication is not configured.',
+      'APS credentials are not configured',
+    );
   }
 
   try {
@@ -31,11 +33,8 @@ export const getViewerToken = async () => {
     return { access_token, expires_in };
   } catch (cause) {
     // The APS SDK error carries an axios request object whose headers include
-    // the `Authorization: Basic <clientId:secret>` credential. Never let it
-    // propagate to the logger — rethrow a sanitized, credential-free error.
-    const err = new Error(cause?.message ?? 'APS token request failed');
-    err.status = 502;
-    err.publicMessage = 'Failed to obtain a viewer token from Autodesk.';
-    throw err;
+    // the `Authorization: Basic <clientId:secret>` credential. sanitizeApsError
+    // keeps only the message, so credentials never reach the logger.
+    throw sanitizeApsError(cause, 'Failed to obtain a viewer token from Autodesk.');
   }
 };

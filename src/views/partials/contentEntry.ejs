@@ -1,0 +1,72 @@
+<%
+  const fmtDate = (value) => {
+    if (!value) return null;
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? value : d.toLocaleString();
+  };
+  const isFolder = entry.type === 'folders';
+  const isRevit =
+    !isFolder &&
+    typeof entry.name === 'string' &&
+    /\.rvt$/i.test(entry.name);
+  const meta = [];
+  if (isFolder) {
+    meta.push('Folder');
+    if (entry.objectCount != null) {
+      meta.push(entry.objectCount + ' item(s)');
+    }
+  } else {
+    meta.push(entry.fileType || 'File');
+  }
+  if (fmtDate(entry.lastModifiedTime)) meta.push('updated ' + fmtDate(entry.lastModifiedTime));
+  if (entry.lastModifiedUserName) meta.push('by ' + entry.lastModifiedUserName);
+  const folderHref = '/hubs/' + encodeURIComponent(hubId)
+    + '/projects/' + encodeURIComponent(projectId)
+    + '/folders/' + encodeURIComponent(entry.id);
+  const downloadHref = '/api/hubs/' + encodeURIComponent(hubId)
+    + '/projects/' + encodeURIComponent(projectId)
+    + '/items/' + encodeURIComponent(entry.id) + '/download';
+  const viewHref = '/hubs/' + encodeURIComponent(hubId)
+    + '/projects/' + encodeURIComponent(projectId)
+    + '/items/' + encodeURIComponent(entry.id) + '/view';
+%>
+<li class="project-entry<%= isFolder ? ' project-entry--folder' : '' %>">
+  <% if (isFolder) { %>
+    <a class="project-entry__link" href="<%= folderHref %>">
+      <span class="project-entry__icon" aria-hidden="true">📁</span>
+      <div class="project-entry__body">
+        <span class="project-entry__name"><%= entry.name %></span>
+        <span class="hubs-meta"><%= meta.join(' · ') %></span>
+      </div>
+      <span class="project-entry__arrow" aria-hidden="true">→</span>
+    </a>
+  <% } else { %>
+    <span class="project-entry__icon" aria-hidden="true">📄</span>
+    <div class="project-entry__body">
+      <span class="project-entry__name"><%= entry.name %></span>
+      <span class="hubs-meta"><%= meta.join(' · ') %></span>
+    </div>
+    <div class="project-entry__actions">
+      <% if (isRevit) { %>
+        <a
+          class="project-entry__action project-entry__action--primary"
+          href="<%= viewHref %>"
+          title="View <%= entry.name %>"
+          aria-label="View <%= entry.name %>"
+        >
+          <span aria-hidden="true">👁</span>
+          <span class="project-entry__action-text">View</span>
+        </a>
+      <% } %>
+      <a
+        class="project-entry__action"
+        href="<%= downloadHref %>"
+        title="Download <%= entry.name %>"
+        aria-label="Download <%= entry.name %>"
+      >
+        <span aria-hidden="true">⬇</span>
+        <span class="project-entry__action-text">Download</span>
+      </a>
+    </div>
+  <% } %>
+</li>

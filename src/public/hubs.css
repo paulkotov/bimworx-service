@@ -7,8 +7,20 @@
 
 .hubs-main {
   max-width: 720px;
-  margin: 0 auto;
+  margin: 0;
   padding: 40px 24px 64px;
+}
+
+/* Centered layout (login / standalone messages). */
+.hubs-main--center {
+  max-width: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hubs-main--center .hubs-card--center {
+  margin: 0;
 }
 
 .hubs-title {
@@ -62,12 +74,22 @@
   display: inline-block;
   margin-top: 8px;
   padding: 12px 18px;
+  border: none;
   border-radius: 10px;
   background: var(--color-accent);
   color: #fff;
   text-decoration: none;
+  font-family: inherit;
   font-weight: 600;
   font-size: 14px;
+  line-height: 1.2;
+  cursor: pointer;
+  appearance: none;
+}
+
+.hubs-button:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }
 
 .hubs-button:hover {
@@ -113,6 +135,55 @@
 .hubs-projects li:last-child {
   border-bottom: 0;
   padding-bottom: 0;
+}
+
+.hubs-project {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas:
+    'name arrow'
+    'meta arrow';
+  align-items: center;
+  column-gap: 12px;
+  row-gap: 4px;
+  margin: -12px 0;
+  padding: 12px 8px;
+  border-radius: 10px;
+  color: inherit;
+  text-decoration: none;
+  transition: background-color 0.15s ease;
+}
+
+.hubs-project:hover,
+.hubs-project:focus-visible {
+  background: #f2f6fb;
+  outline: none;
+}
+
+.hubs-project:focus-visible {
+  box-shadow: 0 0 0 2px var(--color-accent);
+}
+
+.hubs-project .hubs-project-name {
+  grid-area: name;
+}
+
+.hubs-project .hubs-meta {
+  grid-area: meta;
+}
+
+.hubs-project-arrow {
+  grid-area: arrow;
+  color: var(--color-accent);
+  font-size: 16px;
+  opacity: 0;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.hubs-project:hover .hubs-project-arrow,
+.hubs-project:focus-visible .hubs-project-arrow {
+  opacity: 1;
+  transform: translateX(2px);
 }
 
 .hubs-project-name {

@@ -62,8 +62,14 @@
               <ul class="hubs-projects">
                 <% hub.projects.forEach(function (project) { %>
                   <li>
-                    <span class="hubs-project-name"><%= project.name %></span>
-                    <span class="hubs-meta"><%= project.id %></span>
+                    <a
+                      class="hubs-project"
+                      href="/hubs/<%= encodeURIComponent(hub.id) %>/projects/<%= encodeURIComponent(project.id) %>"
+                    >
+                      <span class="hubs-project-name"><%= project.name %></span>
+                      <span class="hubs-meta"><%= project.id %></span>
+                      <span class="hubs-project-arrow" aria-hidden="true">→</span>
+                    </a>
                   </li>
                 <% }) %>
               </ul>
