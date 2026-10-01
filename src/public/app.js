@@ -9,14 +9,7 @@
   const statusSpinner = statusRoot.querySelector('.status__spinner');
 
   const STATUS_COPY = {
-    idle: { title: 'Preparing model', message: 'Looking up the latest file…' },
-    syncing: {
-      list: { title: 'Looking up file', message: 'Querying Google Drive…' },
-      download: { title: 'Downloading', message: 'Fetching the model from Google Drive…' },
-      upload: { title: 'Uploading', message: 'Uploading to Autodesk OSS…' },
-      translate: { title: 'Translating', message: 'Starting translation…' },
-    },
-    translating: { title: 'Translating', message: 'Autodesk is preparing the viewables…' },
+    idle: { title: 'Preparing model', message: 'Loading the Revit model…' },
     ready: { title: 'Ready', message: 'Loading viewer…' },
     failed: { title: 'Something went wrong', message: 'See details below.' },
   };
@@ -29,16 +22,10 @@
     statusSpinner.hidden = snapshot.status === 'failed';
     statusRoot.classList.toggle('is-error', snapshot.status === 'failed');
 
-    const copy =
-      snapshot.status === 'syncing'
-        ? STATUS_COPY.syncing[snapshot.step] ?? STATUS_COPY.syncing.list
-        : STATUS_COPY[snapshot.status] ?? STATUS_COPY.idle;
+    const copy = STATUS_COPY[snapshot.status] ?? STATUS_COPY.idle;
 
     statusTitle.textContent = copy.title;
     let message = copy.message;
-    if (snapshot.status === 'translating' && snapshot.progress) {
-      message = `Autodesk is preparing the viewables (${snapshot.progress})…`;
-    }
     if (snapshot.status === 'failed' && snapshot.error) {
       message = snapshot.error;
     }
@@ -66,7 +53,9 @@
   };
 
   const getAccessToken = (onTokenReady) => {
-    fetchJson('/api/auth/token')
+    const tokenUrl =
+      window.__APP_CONFIG__?.tokenUrl || '/api/auth/aps/token';
+    fetchJson(tokenUrl)
       .then(({ access_token: token, expires_in: expiresIn }) => {
         if (!token) throw new Error('No access_token in response');
         onTokenReady(token, expiresIn);
@@ -105,65 +94,57 @@
       (doc) => {
         const geometry = doc.getRoot().getDefaultGeometry();
         if (!geometry) {
-          showStatus({ status: 'failed', error: 'No default geometry found in the document.' });
+          showStatus({
+            status: 'failed',
+            error:
+              'No viewable geometry found. The model may still be processing in Autodesk Docs.',
+          });
           return;
         }
         viewer.loadDocumentNode(doc, geometry).then(hideStatus);
       },
       (code) => {
         console.error('[viewer] document load failure:', code);
-        showStatus({ status: 'failed', error: `Document load failed (code ${code}).` });
+        showStatus({
+          status: 'failed',
+          error:
+            `Document load failed (code ${code}). The model may still be processing in Autodesk Docs.`,
+        });
       }
     );
   };
 
-  const handleSnapshot = (snapshot) => {
-    if (!snapshot) return;
-    if (snapshot.status === 'ready' && snapshot.urn) {
-      showStatus({ ...snapshot, status: 'ready' });
-      loadUrn(snapshot.urn);
-    } else {
-      showStatus(snapshot);
-    }
-  };
+  const bootstrap = async () => {
+    const config = window.__APP_CONFIG__ || {};
+    const backHref = config.backHref || '/hubs';
 
-  const initRealtime = () => {
-    if (typeof io === 'undefined') {
-      console.warn('[realtime] socket.io client not available');
+    if (config.error) {
+      showStatus({ status: 'failed', error: config.error });
+      statusSource.hidden = false;
+      statusSource.innerHTML = `<a href="${backHref}">Back to project</a>`;
       return;
     }
-    const socket = io();
-    socket.on('model:update', handleSnapshot);
-  };
 
-  const bootstrap = async () => {
-    initRealtime();
+    const model = config.model;
+    if (!model?.urn) {
+      showStatus({
+        status: 'failed',
+        error: 'No Revit model selected. Open a .rvt file from a project folder.',
+      });
+      statusSource.hidden = false;
+      statusSource.innerHTML = `<a href="${backHref}">Back to project</a>`;
+      return;
+    }
+
+    showStatus({
+      status: 'ready',
+      sourceFileName: model.fileName || null,
+    });
+
     const ready = await initViewer();
     if (!ready) return;
 
-    const signedIn = Boolean(window.__APP_CONFIG__?.user);
-    if (!signedIn) {
-      showStatus({
-        status: 'failed',
-        error: 'Sign in with Autodesk to continue — open /hubs',
-      });
-      statusSource.hidden = false;
-      statusSource.innerHTML = '<a href="/hubs">Go to ACC hubs / Sign in</a>';
-      return;
-    }
-
-    try {
-      const snapshot = await fetchJson('/api/model');
-      handleSnapshot(snapshot);
-    } catch (error) {
-      console.error('[bootstrap] failed to fetch model state:', error);
-      showStatus({
-        status: 'failed',
-        error: 'Model sync is not available yet. You can still browse ACC hubs.',
-      });
-      statusSource.hidden = false;
-      statusSource.innerHTML = '<a href="/hubs">Open ACC hubs</a>';
-    }
+    loadUrn(model.urn);
   };
 
   bootstrap();

@@ -5,11 +5,17 @@ import {
 } from '@aps_sdk/authentication';
 import { randomBytes } from 'node:crypto';
 import { env } from '../config/env.js';
+import { createHttpError, sanitizeApsError } from '../utils/httpError.js';
 
 const authClient = new AuthenticationClient();
 
 const THREE_LEGGED_SCOPES = [
   Scopes.DataRead,
+  // Required to create storage, items and versions when uploading files.
+  Scopes.DataWrite,
+  Scopes.DataCreate,
+  // Required for the Autodesk Viewer when loading ACC / BIM 360 models.
+  Scopes.ViewablesRead,
   Scopes.OpenId,
   Scopes.UserProfileRead,
 ];
@@ -19,18 +25,12 @@ export const createOAuthState = () => randomBytes(24).toString('hex');
 export const assertApsCredentials = () => {
   const { clientId, clientSecret } = env.aps;
   if (!clientId || !clientSecret) {
-    const err = new Error('APS credentials are not configured');
-    err.status = 503;
-    err.publicMessage = 'Autodesk authentication is not configured.';
-    throw err;
+    throw createHttpError(
+      503,
+      'Autodesk authentication is not configured.',
+      'APS credentials are not configured',
+    );
   }
-};
-
-const sanitizeApsError = (cause, publicMessage) => {
-  const err = new Error(cause?.message ?? 'APS request failed');
-  err.status = 502;
-  err.publicMessage = publicMessage;
-  return err;
 };
 
 export const buildAuthorizeUrl = (state) => {

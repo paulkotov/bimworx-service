@@ -21,6 +21,8 @@ export const env = {
   aps: {
     clientId: optional('APS_CLIENT_ID'),
     clientSecret: optional('APS_CLIENT_SECRET'),
+    // Reserved. The installed APS SDK derives region from hub/bucket IDs and
+    // exposes no per-call region argument, so this is not currently wired.
     region: optional('APS_REGION', 'US'),
     callbackUrl: optional(
       'APS_CALLBACK_URL',

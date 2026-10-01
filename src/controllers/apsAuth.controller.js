@@ -5,6 +5,7 @@ import {
   toSessionTokens,
 } from '../services/apsOAuth.js';
 import { env } from '../config/env.js';
+import { createHttpError } from '../utils/httpError.js';
 
 const saveSession = (req) =>
   new Promise((resolve, reject) => {
@@ -29,24 +30,27 @@ export const handleApsCallback = async (req, res, next) => {
     const { code, state, error, error_description: errorDescription } = req.query;
 
     if (error) {
-      const err = new Error(String(errorDescription || error));
-      err.status = 400;
-      err.publicMessage = 'Autodesk sign-in was denied or failed.';
-      throw err;
+      throw createHttpError(
+        400,
+        'Autodesk sign-in was denied or failed.',
+        String(errorDescription || error),
+      );
     }
 
     if (!code || typeof code !== 'string') {
-      const err = new Error('Missing authorization code');
-      err.status = 400;
-      err.publicMessage = 'Invalid Autodesk callback.';
-      throw err;
+      throw createHttpError(
+        400,
+        'Invalid Autodesk callback.',
+        'Missing authorization code',
+      );
     }
 
     if (!state || state !== req.session.oauthState) {
-      const err = new Error('OAuth state mismatch');
-      err.status = 400;
-      err.publicMessage = 'Invalid Autodesk callback state.';
-      throw err;
+      throw createHttpError(
+        400,
+        'Invalid Autodesk callback state.',
+        'OAuth state mismatch',
+      );
     }
 
     delete req.session.oauthState;
