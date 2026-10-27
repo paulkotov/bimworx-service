@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title><%= title %></title>
+  <link rel="stylesheet" href="/styles.css" type="text/css" />
+  <link rel="stylesheet" href="/hubs.css" type="text/css" />
+  <link rel="stylesheet" href="/project.css" type="text/css" />
+</head>
+
+<body class="app-shell hubs-page">
+  <%- include('partials/header') %>
+
+  <main class="hubs-main project-main app-shell__content">
+    <nav class="project-breadcrumb" aria-label="Breadcrumb">
+      <a href="/hubs">Hubs</a>
+      <span aria-hidden="true">/</span>
+      <span class="project-breadcrumb__current">
+        <%= overview && overview.project ? overview.project.name : 'Project' %>
+      </span>
+    </nav>
+
+    <% if (error) { %>
+      <section class="hubs-card is-error">
+        <h1>Could not load project</h1>
+        <p><%= error %></p>
+        <a class="hubs-button hubs-button--ghost" href="/hubs">Back to hubs</a>
+      </section>
+    <% } else { %>
+      <header class="project-header">
+        <h1 class="hubs-title"><%= overview.project.name %></h1>
+        <p class="hubs-meta"><%= overview.project.id %></p>
+      </header>
+
+      <section class="hubs-card project-info">
+        <h2>Details</h2>
+        <dl class="project-detail-list">
+          <div>
+            <dt>Type</dt>
+            <dd><%= overview.project.extensionType || '—' %></dd>
+          </div>
+          <div>
+            <dt>Scopes</dt>
+            <dd><%= (overview.project.scopes && overview.project.scopes.length) ? overview.project.scopes.join(', ') : '—' %></dd>
+          </div>
+          <% if (overview.project.extensionData && overview.project.extensionData.projectType) { %>
+            <div>
+              <dt>Project type</dt>
+              <dd><%= overview.project.extensionData.projectType %></dd>
+            </div>
+          <% } %>
+        </dl>
+      </section>
+
+      <section class="project-folders">
+        <h2 class="project-section-title">Folders &amp; documents</h2>
+
+        <% if (!overview.folders.length) { %>
+          <p class="hubs-hint">No accessible top folders for this project.</p>
+        <% } %>
+
+        <% overview.folders.forEach(function (folder) { %>
+          <article class="hubs-card project-folder">
+            <div class="project-folder__head">
+              <h3>
+                <span class="project-folder__icon" aria-hidden="true">📁</span>
+                <%= folder.name %>
+              </h3>
+              <% if (folder.objectCount != null) { %>
+                <span class="hubs-meta"><%= folder.objectCount %> item(s)</span>
+              <% } %>
+            </div>
+
+            <% if (folder.contentsError) { %>
+              <p class="hubs-hint is-error"><%= folder.contentsError %></p>
+            <% } else if (!folder.contents.length) { %>
+              <p class="hubs-hint">Empty folder.</p>
+            <% } else { %>
+              <ul class="project-contents">
+                <% folder.contents.forEach(function (entry) { %>
+                  <%- include('partials/contentEntry', { entry: entry, hubId: hubId, projectId: projectId }) %>
+                <% }) %>
+              </ul>
+            <% } %>
+          </article>
+        <% }) %>
+      </section>
+    <% } %>
+  </main>
+</body>
+
+</html>

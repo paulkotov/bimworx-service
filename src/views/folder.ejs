@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title><%= title %></title>
+  <link rel="stylesheet" href="/styles.css" type="text/css" />
+  <link rel="stylesheet" href="/hubs.css" type="text/css" />
+  <link rel="stylesheet" href="/project.css" type="text/css" />
+</head>
+
+<body class="app-shell hubs-page">
+  <%- include('partials/header') %>
+
+  <main class="hubs-main project-main app-shell__content">
+    <%
+      const projectHref = '/hubs/' + encodeURIComponent(hubId)
+        + '/projects/' + encodeURIComponent(projectId);
+      const parentHref = view && view.parent
+        ? '/hubs/' + encodeURIComponent(hubId)
+          + '/projects/' + encodeURIComponent(projectId)
+          + '/folders/' + encodeURIComponent(view.parent.id)
+        : null;
+    %>
+
+    <nav class="project-breadcrumb" aria-label="Breadcrumb">
+      <a href="/hubs">Hubs</a>
+      <span aria-hidden="true">/</span>
+      <a href="<%= projectHref %>">Project</a>
+      <% if (view && view.parent) { %>
+        <span aria-hidden="true">/</span>
+        <a href="<%= parentHref %>"><%= view.parent.name %></a>
+      <% } %>
+      <span aria-hidden="true">/</span>
+      <span class="project-breadcrumb__current">
+        <%= view && view.folder ? view.folder.name : 'Folder' %>
+      </span>
+    </nav>
+
+    <% if (error) { %>
+      <section class="hubs-card is-error">
+        <h1>Could not load folder</h1>
+        <p><%= error %></p>
+        <a class="hubs-button hubs-button--ghost" href="<%= projectHref %>">Back to project</a>
+      </section>
+    <% } else { %>
+      <%
+        const folders = view.contents.filter(function (e) { return e.type === 'folders'; });
+        const files = view.contents.filter(function (e) { return e.type !== 'folders'; });
+        const summary = [];
+        if (folders.length) summary.push(folders.length + ' folder(s)');
+        summary.push(files.length + ' file(s)');
+      %>
+      <header class="project-header">
+        <h1 class="hubs-title">
+          <span class="project-folder__icon" aria-hidden="true">📁</span>
+          <%= view.folder.name %>
+        </h1>
+        <p class="hubs-meta"><%= summary.join(' · ') %></p>
+      </header>
+
+      <div class="project-folder__actions">
+        <% if (parentHref) { %>
+          <a class="hubs-button hubs-button--ghost" href="<%= parentHref %>">↑ Up one level</a>
+        <% } %>
+        <a class="hubs-button hubs-button--ghost" href="<%= projectHref %>">Project overview</a>
+        <button type="button" class="hubs-button" id="upload-btn">⬆ Upload files</button>
+        <input type="file" id="upload-input" multiple hidden />
+      </div>
+      <p class="hubs-hint project-upload-status" id="upload-status" hidden></p>
+
+      <section class="hubs-card project-folder">
+        <% if (!view.contents.length) { %>
+          <p class="hubs-hint">This folder is empty.</p>
+        <% } else { %>
+          <ul class="project-contents">
+            <% view.contents.forEach(function (entry) { %>
+              <%- include('partials/contentEntry', { entry: entry, hubId: hubId, projectId: projectId }) %>
+            <% }) %>
+          </ul>
+        <% } %>
+      </section>
+    <% } %>
+  </main>
+
+  <% if (!error && view) { %>
+    <script>
+      window.__UPLOAD_ENDPOINT__ = "<%= '/api/hubs/' + encodeURIComponent(hubId) + '/projects/' + encodeURIComponent(projectId) + '/folders/' + encodeURIComponent(view.folder.id) + '/upload' %>";
+    </script>
+    <script src="/folder.js" defer></script>
+  <% } %>
+</body>
+
+</html>

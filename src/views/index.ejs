@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title><%= title %></title>
+
+  <link rel="preconnect" href="https://developer.api.autodesk.com" crossorigin />
+
+  <link
+    rel="stylesheet"
+    href="https://developer.api.autodesk.com/modelderivative/v2/viewers/7.115.0/style.min.css"
+    type="text/css"
+  />
+  <link rel="stylesheet" href="/styles.css" type="text/css" />
+
+  <script
+    defer
+    src="https://developer.api.autodesk.com/modelderivative/v2/viewers/7.115.0/viewer3D.min.js"
+  ></script>
+  <script defer src="/socket.io/socket.io.js"></script>
+  <script defer src="/app.js"></script>
+</head>
+
+<body class="app-shell app-shell--viewer">
+  <%- include('partials/header') %>
+
+  <div class="app-shell__content">
+    <div id="aps-viewer"></div>
+
+    <div id="status" role="status" aria-live="polite">
+      <div class="status__card">
+        <div class="status__spinner" aria-hidden="true"></div>
+        <div class="status__text">
+          <h1 class="status__title">Preparing model</h1>
+          <p class="status__message">Connecting…</p>
+          <p class="status__source" hidden></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    window.__APP_CONFIG__ = <%- appConfigJson %>;
+  </script>
+</body>
+
+</html>
