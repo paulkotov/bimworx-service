@@ -1,0 +1,163 @@
+<% if (page.error) { %>
+  <section class="hubs-card is-error">
+    <h2>Could not load model details</h2>
+    <p><%= page.error %></p>
+  </section>
+<% } else if (page.notice) { %>
+  <section class="hubs-card">
+    <h2>Viewable unavailable</h2>
+    <p><%= page.notice %></p>
+    <% if (page.showRefresh) { %>
+      <a class="hubs-button" href="<%= page.detailsHref %>">Refresh</a>
+    <% } %>
+  </section>
+<% } else if (page.showReport) { %>
+  <div class="model-details">
+    <section class="hubs-card" aria-labelledby="model-identity-title">
+      <h2 id="model-identity-title">Project</h2>
+      <dl class="project-detail-list">
+        <% page.report.identity.forEach(function (row) { %>
+          <div class="<%= row.className %>">
+            <dt><%= row.label %></dt>
+            <dd><%= row.value %></dd>
+          </div>
+        <% }) %>
+      </dl>
+    </section>
+
+    <section class="hubs-card" aria-labelledby="model-size-title">
+      <h2 id="model-size-title">Model</h2>
+      <dl class="project-detail-list">
+        <div>
+          <dt>Elements in the takeoff</dt>
+          <dd><%= page.report.elementCount %></dd>
+        </div>
+        <div>
+          <dt>Count-only elements</dt>
+          <dd><%= page.report.pieceCount %></dd>
+        </div>
+      </dl>
+      <% if (page.report.hasCategories) { %>
+        <div class="model-table-wrap">
+          <table class="model-table">
+            <caption>Elements by family category (in the takeoff)</caption>
+            <thead>
+              <tr>
+                <th scope="col">Category</th>
+                <th class="is-num" scope="col">Elements</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% page.report.categories.forEach(function (category) { %>
+                <tr>
+                  <td><%= category.name %></td>
+                  <td class="is-num"><%= category.count %></td>
+                </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+      <% } %>
+      <% if (page.report.hasPieces) { %>
+        <div class="model-table-wrap">
+          <table class="model-table">
+            <caption>
+              Count-only elements by category (doors, windows and other
+              families with no material quantity)
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">Category</th>
+                <th class="is-num" scope="col">Elements</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% page.report.pieces.forEach(function (piece) { %>
+                <tr>
+                  <td><%= piece.name %></td>
+                  <td class="is-num"><%= piece.count %></td>
+                </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+      <% } %>
+      <p class="hubs-hint model-detail-note">
+        Quantities come from BIM 360 element properties.
+        The takeoff counts elements with a material quantity (volume, area or
+        length); count-only elements (doors, windows and similar families) carry
+        no such quantity and are listed separately.
+        This extract has no overall model size or bounding box.
+      </p>
+    </section>
+
+    <section class="hubs-card" aria-labelledby="model-levels-title">
+      <h2 id="model-levels-title">Levels</h2>
+      <% if (page.report.hasLevels) { %>
+        <div class="model-table-wrap">
+          <table class="model-table">
+            <caption>Levels and their elevation</caption>
+            <thead>
+              <tr>
+                <th scope="col">Name</th>
+                <th class="is-num" scope="col">Elevation (m)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% page.report.levels.forEach(function (level) { %>
+                <tr>
+                  <td><%= level.name %></td>
+                  <td class="is-num"><%= level.elevation %></td>
+                </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+      <% } else { %>
+        <p class="hubs-hint">This extract has no levels.</p>
+      <% } %>
+    </section>
+
+    <section class="hubs-card" aria-labelledby="model-materials-title">
+      <h2 id="model-materials-title">Materials</h2>
+      <% if (page.report.hasMaterials) { %>
+        <div class="model-table-wrap">
+          <table class="model-table">
+            <caption>Material quantities by level</caption>
+            <thead>
+              <tr>
+                <th scope="col">Level</th>
+                <th class="is-num" scope="col">Elevation (m)</th>
+                <th scope="col">Material</th>
+                <th scope="col">Class</th>
+                <th class="is-num" scope="col">Volume (m³)</th>
+                <th class="is-num" scope="col">Area (m²)</th>
+                <th class="is-num" scope="col">Length (m)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% page.report.materials.forEach(function (material) { %>
+                <tr>
+                  <td><%= material.level %></td>
+                  <td class="is-num"><%= material.elevation %></td>
+                  <td><%= material.name %></td>
+                  <td><%= material.materialClass %></td>
+                  <td class="is-num"><%= material.volume %></td>
+                  <td class="is-num"><%= material.area %></td>
+                  <td class="is-num"><%= material.length %></td>
+                </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+      <% } else { %>
+        <p class="hubs-hint">This extract has no material quantities.</p>
+      <% } %>
+    </section>
+  </div>
+<% } else if (page.showEmpty) { %>
+  <section class="hubs-card">
+    <h2>Could not load model details</h2>
+    <p>The model report was empty.</p>
+  </section>
+<% } %>

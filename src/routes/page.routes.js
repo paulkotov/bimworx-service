@@ -7,6 +7,7 @@ import {
   renderProject,
   renderFolder,
   renderItemViewer,
+  renderItemDetails,
 } from '../controllers/page.controller.js';
 
 export const pageRouter = Router();
@@ -31,4 +32,9 @@ pageRouter.get(
   '/hubs/:hubId/projects/:projectId/items/:itemId/view',
   requireApsPage,
   renderItemViewer,
+);
+pageRouter.get(
+  '/hubs/:hubId/projects/:projectId/items/:itemId/details',
+  requireApsPage,
+  renderItemDetails,
 );

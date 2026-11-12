@@ -13,14 +13,14 @@
   <%- include('partials/header') %>
 
   <main class="hubs-main app-shell__content">
-    <% if (error) { %>
+    <% if (page.error) { %>
       <section class="hubs-card hubs-card--center is-error">
         <h1>Could not load hubs</h1>
-        <p><%= error %></p>
+        <p><%= page.error %></p>
         <p class="hubs-hint">If the list is empty or forbidden, provision this APS app as a Custom Integration on the ACC account.</p>
         <a class="hubs-button hubs-button--ghost" href="<%= loginUrl %>">Sign in again</a>
       </section>
-    <% } else if (!hubs.length) { %>
+    <% } else if (page.isEmpty) { %>
       <section class="hubs-card hubs-card--center">
         <h1>No hubs found</h1>
         <p>Your Autodesk account has no accessible hubs for this app yet.</p>
@@ -29,15 +29,12 @@
           Document Management is provisioned and you re-login with the same Autodesk
           account that owns the EU hub.
         </p>
-        <% if (typeof warnings !== 'undefined' && warnings && warnings.length) { %>
+        <% if (page.hasWarnings) { %>
           <div class="hubs-warnings">
             <p class="hubs-hint"><strong>APS warnings:</strong></p>
             <ul>
-              <% warnings.forEach(function (w) { %>
-                <li class="hubs-hint is-error">
-                  <%= w.code || 'WARNING' %>: <%= w.title || '' %>
-                  <% if (w.detail) { %> — <%= w.detail %><% } %>
-                </li>
+              <% page.warnings.forEach(function (warning) { %>
+                <li class="hubs-hint is-error"><%= warning.text %></li>
               <% }) %>
             </ul>
           </div>
@@ -48,24 +45,21 @@
     <% } else { %>
       <h1 class="hubs-title">Your hubs</h1>
       <ul class="hubs-list">
-        <% hubs.forEach(function (hub) { %>
+        <% page.hubs.forEach(function (hub) { %>
           <li class="hubs-card">
             <div class="hubs-hub">
               <h2><%= hub.name %></h2>
-              <p class="hubs-meta"><%= hub.id %><% if (hub.region) { %> · <%= hub.region %><% } %></p>
+              <p class="hubs-meta"><%= hub.meta %></p>
             </div>
             <% if (hub.projectsError) { %>
               <p class="hubs-hint is-error">Could not load projects for this hub.</p>
-            <% } else if (!hub.projects.length) { %>
+            <% } else if (hub.isEmpty) { %>
               <p class="hubs-hint">No projects.</p>
             <% } else { %>
               <ul class="hubs-projects">
                 <% hub.projects.forEach(function (project) { %>
                   <li>
-                    <a
-                      class="hubs-project"
-                      href="/hubs/<%= encodeURIComponent(hub.id) %>/projects/<%= encodeURIComponent(project.id) %>"
-                    >
+                    <a class="hubs-project" href="<%= project.href %>">
                       <span class="hubs-project-name"><%= project.name %></span>
                       <span class="hubs-meta"><%= project.id %></span>
                       <span class="hubs-project-arrow" aria-hidden="true">→</span>
