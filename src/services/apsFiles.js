@@ -20,6 +20,13 @@ const BIM360_VERSION_EXT = {
   type: 'versions:autodesk.bim360:File',
   version: '1.0',
 };
+// BIM 360/ACC has no item DELETE endpoint: a file is soft-deleted by posting a
+// tombstone version, which hides the item from the folder. The schema is the
+// generic core one — versions:autodesk.bim360:Deleted does not exist.
+const DELETE_VERSION_EXT = {
+  type: 'versions:autodesk.core:Deleted',
+  version: '1.0',
+};
 
 /** Splits an OSS storage URN into { bucketKey, objectKey }, or null. */
 const parseStorageUrn = (storageId) => {
@@ -112,6 +119,65 @@ export const getItemDownloadInfo = async (projectId, itemId, accessToken) => {
   }
 
   return { url, fileName };
+};
+
+/**
+ * Deletes an item by posting a "deleted" version, moving it to the BIM 360
+ * trash. The current user needs edit access (enforced by APS).
+ * @returns {Promise<{ fileName: string }>}
+ */
+export const deleteItemFromFolder = async (projectId, itemId, accessToken) => {
+  let fileName = 'file';
+  try {
+    const resp = await dataClient.getItemTip(projectId, itemId, { accessToken });
+    fileName =
+      resp?.data?.attributes?.displayName ?? resp?.data?.attributes?.name ?? fileName;
+  } catch {
+    // Fall through: the delete call below surfaces a real access error.
+  }
+
+  try {
+    await dataClient.createVersion(
+      projectId,
+      {
+        jsonapi: { version: '1.0' },
+        data: {
+          type: 'versions',
+          attributes: { extension: DELETE_VERSION_EXT },
+          relationships: {
+            item: { data: { type: 'items', id: itemId } },
+          },
+        },
+      },
+      { accessToken },
+    );
+  } catch (cause) {
+    logApsFailure('delete', itemId, cause);
+    throw sanitizeApsError(
+      cause,
+      'You do not have permission to delete this file, or it is already removed.',
+    );
+  }
+
+  return { fileName };
+};
+
+/**
+ * Logs the real APS rejection (HTTP status + response body) behind a sanitized
+ * error, so a generic client message can be traced to the actual cause (wrong
+ * scope, missing permission, bad payload, or an already-deleted item).
+ */
+const logApsFailure = (action, id, cause) => {
+  const status =
+    (typeof cause?.httpStatusCode === 'function' ? Number(cause.httpStatusCode()) : null) ||
+    cause?.axiosError?.response?.status ||
+    cause?.response?.status ||
+    null;
+  const body = cause?.axiosError?.response?.data ?? cause?.response?.data ?? null;
+  console.error(
+    `[${action}] id=${id} status=${status ?? '?'} message=${cause?.message ?? ''}`,
+    body ? JSON.stringify(body) : '',
+  );
 };
 
 /** Allocates an OSS storage location targeted at a folder. */

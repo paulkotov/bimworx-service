@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title><%= title %></title>
+  <link rel="stylesheet" href="/styles.css" type="text/css" />
+  <link rel="stylesheet" href="/hubs.css" type="text/css" />
+  <link rel="stylesheet" href="/project.css" type="text/css" />
+</head>
+
+<body class="app-shell hubs-page">
+  <%- include('partials/header') %>
+
+  <main class="hubs-main hubs-main--wide project-main app-shell__content">
+    <nav class="project-breadcrumb" aria-label="Breadcrumb">
+      <a href="/hubs">Hubs</a>
+      <span aria-hidden="true">/</span>
+      <a href="<%= page.projectHref %>">Project</a>
+      <span aria-hidden="true">/</span>
+      <span class="project-breadcrumb__current" id="model-details-crumb"><%= page.fileName %></span>
+    </nav>
+
+    <header class="project-header">
+      <h1 class="hubs-title" id="model-details-name"><%= page.fileName %></h1>
+      <p class="hubs-meta">Model details from BIM 360</p>
+    </header>
+
+    <div class="model-actions">
+      <a class="hubs-button hubs-button--ghost" href="<%= page.viewHref %>">View model</a>
+      <a class="hubs-button hubs-button--ghost" href="<%= page.projectHref %>">Back to project</a>
+    </div>
+
+    <div id="model-details-result" aria-live="polite">
+      <% if (page.loading) { %>
+        <section class="hubs-card model-loader" role="status">
+          <div class="status__spinner" aria-hidden="true"></div>
+          <div>
+            <h2>Loading model details</h2>
+            <p class="hubs-hint">Reading project information and material quantities from BIM 360.</p>
+          </div>
+        </section>
+      <% } else { %>
+        <%- include('partials/detailsResult', { page: page }) %>
+      <% } %>
+    </div>
+  </main>
+
+  <% if (page.loading) { %>
+    <script>
+      window.__DETAILS_ENDPOINT__ = "<%= page.endpoint %>";
+    </script>
+    <script src="/details.js" defer></script>
+  <% } %>
+</body>
+
+</html>

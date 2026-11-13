@@ -7,8 +7,11 @@ import {
 import {
   getItemDownloadInfo,
   uploadFileToFolder,
+  deleteItemFromFolder,
 } from '../services/apsFiles.js';
+import { getItemModelDetails } from '../services/apsModelDetails.js';
 import { createHttpError } from '../utils/httpError.js';
+import { toModelDetailsPage } from '../viewModels/modelDetailsPage.js';
 
 export const getHubs = async (req, res, next) => {
   try {
@@ -52,6 +55,42 @@ export const getFolder = async (req, res, next) => {
   }
 };
 
+export const getItemDetails = async (req, res, next) => {
+  try {
+    const { hubId, projectId, itemId } = req.params;
+
+    let details = null;
+    let error = null;
+
+    try {
+      details = await getItemModelDetails(
+        hubId,
+        projectId,
+        itemId,
+        req.apsAccessToken,
+      );
+    } catch (err) {
+      error = err.publicMessage ?? err.message ?? 'Failed to load model details.';
+    }
+
+    const page = toModelDetailsPage({ hubId, projectId, itemId, details, error });
+
+    res.render('partials/detailsResult', { page }, (renderErr, html) => {
+      if (renderErr) {
+        next(renderErr);
+        return;
+      }
+      res.json({
+        title: page.title,
+        fileName: page.fileName,
+        html,
+      });
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 export const downloadItem = async (req, res, next) => {
   try {
     const { projectId, itemId } = req.params;
@@ -87,6 +126,16 @@ export const uploadToFolder = async (req, res, next) => {
       req.apsAccessToken,
     );
     res.status(201).json(result);
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const deleteFolderItem = async (req, res, next) => {
+  try {
+    const { projectId, itemId } = req.params;
+    const result = await deleteItemFromFolder(projectId, itemId, req.apsAccessToken);
+    res.status(200).json(result);
   } catch (err) {
     next(err);
   }
