@@ -6,7 +6,9 @@ import {
   getProject,
   getFolder,
   downloadItem,
+  getItemDetails,
   uploadToFolder,
+  deleteFolderItem,
 } from '../controllers/hubs.controller.js';
 
 export const hubsRouter = Router();
@@ -17,6 +19,10 @@ hubsRouter.get('/:hubId/projects', getHubProjects);
 hubsRouter.get('/:hubId/projects/:projectId', getProject);
 hubsRouter.get('/:hubId/projects/:projectId/folders/:folderId', getFolder);
 hubsRouter.get(
+  '/:hubId/projects/:projectId/items/:itemId/details',
+  getItemDetails,
+);
+hubsRouter.get(
   '/:hubId/projects/:projectId/items/:itemId/download',
   downloadItem,
 );
@@ -25,4 +31,8 @@ hubsRouter.post(
   '/:hubId/projects/:projectId/folders/:folderId/upload',
   raw({ type: '*/*', limit: '500mb' }),
   uploadToFolder,
+);
+hubsRouter.delete(
+  '/:hubId/projects/:projectId/items/:itemId',
+  deleteFolderItem,
 );

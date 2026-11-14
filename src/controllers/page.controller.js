@@ -6,6 +6,11 @@ import {
   getFolderView,
 } from '../services/apsData.js';
 import { getItemViewInfo } from '../services/apsFiles.js';
+import { toModelDetailsShell } from '../viewModels/modelDetailsPage.js';
+import { toFolderPage } from '../viewModels/folderPage.js';
+import { toHubsPage } from '../viewModels/hubsPage.js';
+import { toProjectPage } from '../viewModels/projectPage.js';
+import { renderAppPage } from '../viewModels/renderAppPage.js';
 
 /**
  * Page controllers stay thin: authentication is enforced by requireApsPage
@@ -23,7 +28,7 @@ export const renderLogin = (req, res) => {
     return;
   }
 
-  res.render('login', {
+  renderAppPage(res, 'login', {
     title: 'BimWorx · Login',
     activeNav: 'login',
   });
@@ -53,13 +58,13 @@ export const renderHubs = async (req, res, next) => {
       error = err.publicMessage ?? err.message ?? 'Failed to list hubs.';
     }
 
-    res.render('hubs', {
-      title: 'BimWorx · ACC hubs',
+    const page = toHubsPage({ hubs, warnings, error });
+
+    renderAppPage(res, 'hubs', {
+      title: page.title,
       activeNav: 'hubs',
       authenticated: true,
-      hubs,
-      warnings,
-      error,
+      page,
     });
   } catch (err) {
     next(err);
@@ -83,16 +88,13 @@ export const renderProject = async (req, res, next) => {
       error = err.publicMessage ?? err.message ?? 'Failed to load project.';
     }
 
-    res.render('project', {
-      title: overview?.project?.name
-        ? `BimWorx · ${overview.project.name}`
-        : 'BimWorx · Project',
+    const page = toProjectPage({ hubId, projectId, overview, error });
+
+    renderAppPage(res, 'project', {
+      title: page.title,
       activeNav: 'hubs',
       authenticated: true,
-      hubId,
-      projectId,
-      overview,
-      error,
+      page,
     });
   } catch (err) {
     next(err);
@@ -116,16 +118,33 @@ export const renderFolder = async (req, res, next) => {
       error = err.publicMessage ?? err.message ?? 'Failed to load folder.';
     }
 
-    res.render('folder', {
-      title: view?.folder?.name
-        ? `BimWorx · ${view.folder.name}`
-        : 'BimWorx · Folder',
+    const page = toFolderPage({ hubId, projectId, view, error });
+
+    renderAppPage(res, 'folder', {
+      title: page.title,
       activeNav: 'hubs',
       authenticated: true,
-      hubId,
-      projectId,
-      view,
-      error,
+      page,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Model details shell. The report is loaded by the browser from the details API
+ * so the page opens before BIM 360 responds.
+ */
+export const renderItemDetails = (req, res, next) => {
+  try {
+    const { hubId, projectId, itemId } = req.params;
+    const page = toModelDetailsShell({ hubId, projectId, itemId });
+
+    renderAppPage(res, 'details', {
+      title: page.title,
+      activeNav: 'hubs',
+      authenticated: true,
+      page,
     });
   } catch (err) {
     next(err);
@@ -168,7 +187,7 @@ export const renderItemViewer = async (req, res, next) => {
       backHref: `/hubs/${encodeURIComponent(hubId)}/projects/${encodeURIComponent(projectId)}`,
     };
 
-    res.render('index', {
+    renderAppPage(res, 'index', {
       title: viewInfo?.fileName
         ? `BimWorx · ${viewInfo.fileName}`
         : 'BimWorx · Viewer',
