@@ -114,14 +114,21 @@
     );
   };
 
+  const showBackLink = (config, backHref) => {
+    const link = document.createElement('a');
+    link.href = backHref;
+    link.textContent = config.backLabel || 'Back to project';
+    statusSource.replaceChildren(link);
+    statusSource.hidden = false;
+  };
+
   const bootstrap = async () => {
     const config = window.__APP_CONFIG__ || {};
     const backHref = config.backHref || '/hubs';
 
     if (config.error) {
       showStatus({ status: 'failed', error: config.error });
-      statusSource.hidden = false;
-      statusSource.innerHTML = `<a href="${backHref}">Back to project</a>`;
+      showBackLink(config, backHref);
       return;
     }
 
@@ -131,8 +138,7 @@
         status: 'failed',
         error: 'No Revit model selected. Open a .rvt file from a project folder.',
       });
-      statusSource.hidden = false;
-      statusSource.innerHTML = `<a href="${backHref}">Back to project</a>`;
+      showBackLink(config, backHref);
       return;
     }
 

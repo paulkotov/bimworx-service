@@ -52,12 +52,12 @@ const noticeFor = (translation, region) => {
   return NOTICES[translation] ?? 'BIM 360 has no viewable for this model.';
 };
 
-const formatReport = (report) => ({
+const formatReport = (report, { versionLabel = 'BIM 360 version' } = {}) => ({
   identity: IDENTITY_FIELDS.map(([key, label, wide]) => ({
-    label,
+    label: key === 'projectPath' ? versionLabel : label,
     value: formatText(report.project?.[key]),
     className: wide ? 'is-wide' : '',
-  })),
+  })).filter((row) => row.label !== versionLabel || row.value !== EMPTY),
   elementCount: formatQuantity(report.elementCount, 0),
   categories: (report.categories ?? []).map((category) => ({
     name: formatText(category.name),
@@ -70,6 +70,14 @@ const formatReport = (report) => ({
     count: formatQuantity(piece.count, 0),
   })),
   hasPieces: (report.pieces?.categories ?? []).length > 0,
+  pieceItems: (report.pieces?.items ?? []).map((item) => ({
+    level: formatText(item.level),
+    category: formatText(item.category),
+    family: formatText(item.family),
+    type: formatText(item.type),
+    count: formatQuantity(item.count, 0),
+  })),
+  hasPieceItems: (report.pieces?.items ?? []).length > 0,
   levels: (report.levels ?? []).map((level) => ({
     name: formatText(level.name),
     elevation: formatQuantity(level.elevationM, 3),
@@ -115,6 +123,16 @@ export const toModelDetailsPage = ({ hubId, projectId, itemId, details, error })
     viewHref: `${itemHref}/view`,
     detailsHref: `${itemHref}/details`,
     endpoint: `/api${itemHref}/details`,
+    crumbs: [
+      { href: '/hubs', label: 'Hubs' },
+      { href: projectHref, label: 'Project' },
+    ],
+    subtitle: 'Model details from BIM 360',
+    loadingHint: 'Reading project information and material quantities from BIM 360.',
+    actions: [
+      { href: `${itemHref}/view`, label: 'View model' },
+      { href: projectHref, label: 'Back to project' },
+    ],
     loading: false,
     error,
     notice,
@@ -133,3 +151,81 @@ export const toModelDetailsShell = ({ hubId, projectId, itemId }) => ({
   loading: true,
   showEmpty: false,
 });
+
+const TRANSLATION_NOTICES = {
+  pending: 'Translation is still running. Refresh this page in a moment.',
+  inprogress: 'Translation is still running. Refresh this page in a moment.',
+  failed: 'Translation failed for this model.',
+  timeout: 'Translation timed out for this model.',
+  'no-3d': 'This model has no 3D view to read.',
+  missing: 'This translation has no viewable yet.',
+};
+
+const safeRootName = (value) => {
+  const name = typeof value === 'string' ? value.trim() : '';
+  if (!name || !/\.rvt$/i.test(name) || /[\\/]/.test(name)) return 'Composite model';
+  return name;
+};
+
+const translationHref = (path, urn, rootFilename) => {
+  const params = new URLSearchParams();
+  if (urn) params.set('urn', urn);
+  if (rootFilename) params.set('root', rootFilename);
+  const query = params.toString();
+  return query ? `${path}?${query}` : path;
+};
+
+/**
+ * Details page for a composite ZIP translation. Same report shape as a hub
+ * item, with navigation that stays on the translate flow.
+ */
+export const toTranslationDetailsPage = ({ urn, rootFilename, details, error }) => {
+  const fileName = details?.fileName || safeRootName(rootFilename);
+  const translation = details?.translation ?? null;
+  const preparing = translation === 'pending' || translation === 'inprogress';
+  const notice =
+    !error && translation && translation !== 'success'
+      ? (TRANSLATION_NOTICES[translation] ?? 'This translation has no viewable yet.')
+      : null;
+  const report =
+    !error && !notice && details?.report
+      ? formatReport(details.report, { versionLabel: 'Source file' })
+      : null;
+  const detailsHref = translationHref('/translate/reports', urn, rootFilename);
+  const viewHref = translationHref('/translate/reports/view', urn, rootFilename);
+
+  return {
+    title: `BimWorx · ${fileName} · Details`,
+    fileName,
+    projectHref: '/translate',
+    viewHref,
+    detailsHref,
+    endpoint: translationHref('/api/translate/reports', urn, rootFilename),
+    crumbs: [{ href: '/translate', label: 'Translate' }],
+    subtitle: 'Translated composite model',
+    loadingHint: 'Reading project information and material quantities.',
+    actions: [
+      { href: viewHref, label: 'View model' },
+      { href: '/translate', label: 'Back' },
+    ],
+    loading: false,
+    error,
+    notice,
+    showRefresh: Boolean(notice && preparing),
+    showReport: Boolean(report),
+    showEmpty: !error && !notice && !report,
+    report,
+  };
+};
+
+/** Page shell. The browser fills the report after the details request returns. */
+export const toTranslationDetailsShell = ({ urn, rootFilename }) => {
+  const fileName = safeRootName(rootFilename);
+  return {
+    ...toTranslationDetailsPage({ urn, rootFilename, details: null, error: null }),
+    title: `BimWorx · ${fileName} · Details`,
+    fileName,
+    loading: true,
+    showEmpty: false,
+  };
+};

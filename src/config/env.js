@@ -21,8 +21,10 @@ export const env = {
   aps: {
     clientId: optional('APS_CLIENT_ID'),
     clientSecret: optional('APS_CLIENT_SECRET'),
-    // Reserved. The installed APS SDK derives region from hub/bucket IDs and
-    // exposes no per-call region argument, so this is not currently wired.
+    // OSS bucket that stores uploaded composite ZIPs for translation.
+    bucketKey: optional('APS_BUCKET_KEY'),
+    // OSS/Model Derivative region. Passed per-call to bucket creation and
+    // translation (apsTranslation.js) so storage and translation stay in sync.
     region: optional('APS_REGION', 'US'),
     callbackUrl: optional(
       'APS_CALLBACK_URL',

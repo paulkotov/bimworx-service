@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { toModelDetailsPage, toModelDetailsShell } from '../src/viewModels/modelDetailsPage.js';
+import { toModelDetailsPage, toModelDetailsShell, toTranslationDetailsPage, toTranslationDetailsShell } from '../src/viewModels/modelDetailsPage.js';
 
 const ids = { hubId: 'b.hub', projectId: 'b.project', itemId: 'b.item' };
 
@@ -182,5 +182,84 @@ describe('toModelDetailsPage', () => {
     assert.equal(page.title, 'BimWorx · Details');
     assert.equal(page.notice, null);
     assert.equal(page.showReport, false);
+  });
+});
+
+describe('toTranslationDetailsPage', () => {
+  const urn = 'dXJuOmV4YW1wbGU';
+  const root = 'Tower.rvt';
+
+  it('points the shell at the translate report and keeps the root name', () => {
+    const page = toTranslationDetailsShell({ urn, rootFilename: root });
+
+    assert.equal(page.loading, true);
+    assert.equal(page.fileName, 'Tower.rvt');
+    assert.equal(page.subtitle, 'Translated composite model');
+    assert.equal(page.crumbs[0].href, '/translate');
+    assert.equal(page.endpoint, `/api/translate/reports?urn=${urn}&root=Tower.rvt`);
+    assert.equal(page.viewHref, `/translate/reports/view?urn=${urn}&root=Tower.rvt`);
+    assert.equal(page.actions[1].href, '/translate');
+  });
+
+  it('describes a running translation without BIM 360 copy', () => {
+    const page = toTranslationDetailsPage({
+      urn,
+      rootFilename: root,
+      error: null,
+      details: {
+        fileName: 'Tower.rvt',
+        region: 'US',
+        translation: 'inprogress',
+        report: null,
+      },
+    });
+
+    assert.equal(page.notice, 'Translation is still running. Refresh this page in a moment.');
+    assert.equal(page.showRefresh, true);
+    assert.equal(page.showReport, false);
+  });
+
+  it('formats materials and drops an empty source row', () => {
+    const page = toTranslationDetailsPage({
+      urn,
+      rootFilename: root,
+      error: null,
+      details: {
+        fileName: 'Tower.rvt',
+        translation: 'success',
+        report: {
+          project: { fileName: 'Tower.rvt', projectPath: '' },
+          elementCount: 1,
+          categories: [],
+          pieces: { count: 0, categories: [] },
+          levels: [],
+          materials: {
+            levels: [
+              {
+                name: 'Level 1',
+                elevationM: 3,
+                materials: [
+                  {
+                    name: 'Concrete',
+                    materialClass: 'Concrete',
+                    volumeM3: 2,
+                    areaM2: 4,
+                    lengthM: 1,
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      },
+    });
+
+    assert.equal(page.showReport, true);
+    assert.equal(page.report.materials[0].name, 'Concrete');
+    assert.equal(page.report.materials[0].volume, '2');
+    assert.equal(
+      page.report.identity.some((row) => row.label === 'BIM 360 version'),
+      false,
+    );
   });
 });

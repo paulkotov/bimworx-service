@@ -6,7 +6,8 @@ import {
   getFolderView,
 } from '../services/apsData.js';
 import { getItemViewInfo } from '../services/apsFiles.js';
-import { toModelDetailsShell } from '../viewModels/modelDetailsPage.js';
+import { assertOwnObjectUrn } from '../services/apsTranslation.js';
+import { toModelDetailsShell, toTranslationDetailsShell } from '../viewModels/modelDetailsPage.js';
 import { toFolderPage } from '../viewModels/folderPage.js';
 import { toHubsPage } from '../viewModels/hubsPage.js';
 import { toProjectPage } from '../viewModels/projectPage.js';
@@ -39,6 +40,78 @@ export const renderLogin = (req, res) => {
  */
 export const renderHome = (_req, res) => {
   res.redirect('/hubs');
+};
+
+/**
+ * Composite-model upload page. The browser uploads a flat ZIP directly to
+ * Autodesk storage (signed S3 URLs) and polls the translation status.
+ * Requires Autodesk session (see requireApsPage).
+ */
+export const renderTranslate = (_req, res) => {
+  renderAppPage(res, 'translate', {
+    title: 'BimWorx · Translate',
+    activeNav: 'hubs',
+    authenticated: true,
+  });
+};
+
+const queryText = (value) => (typeof value === 'string' ? value : '');
+
+/**
+ * Materials report for a translated composite ZIP. The shell matches the hub
+ * details page; the browser loads the report from the translate API.
+ */
+export const renderTranslationReport = (req, res) => {
+  const urn = queryText(req.query.urn);
+  const rootFilename = queryText(req.query.root);
+  const page = toTranslationDetailsShell({ urn, rootFilename });
+
+  renderAppPage(res, 'details', {
+    title: page.title,
+    activeNav: 'hubs',
+    authenticated: true,
+    page,
+  });
+};
+
+/**
+ * Viewer for a derivative stored in the app bucket. Uses the 2-legged
+ * viewables:read token; the user's ACC token cannot read this object.
+ */
+export const renderTranslationViewer = (req, res) => {
+  const urn = queryText(req.query.urn);
+  const rootFilename = queryText(req.query.root);
+  const page = toTranslationDetailsShell({ urn, rootFilename });
+  let error = null;
+  let model = null;
+
+  if (!urn) {
+    error = 'A model URN is required.';
+  } else {
+    try {
+      assertOwnObjectUrn(urn);
+      model = { urn, fileName: page.fileName, status: 'ready' };
+    } catch (err) {
+      error = err.publicMessage ?? 'A translation URN from this app is required.';
+    }
+  }
+
+  const appConfig = {
+    env: env.nodeEnv,
+    user: { provider: 'autodesk' },
+    tokenUrl: '/api/auth/token',
+    backHref: page.detailsHref,
+    backLabel: 'Back to details',
+    model,
+    error,
+  };
+
+  renderAppPage(res, 'index', {
+    title: `BimWorx · ${page.fileName}`,
+    activeNav: 'hubs',
+    authenticated: true,
+    appConfigJson: serializeForScript(appConfig),
+  });
 };
 
 /**
