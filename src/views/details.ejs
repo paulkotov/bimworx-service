@@ -15,21 +15,25 @@
 
   <main class="hubs-main hubs-main--wide project-main app-shell__content">
     <nav class="project-breadcrumb" aria-label="Breadcrumb">
-      <a href="/hubs">Hubs</a>
-      <span aria-hidden="true">/</span>
-      <a href="<%= page.projectHref %>">Project</a>
+      <% page.crumbs.forEach(function (crumb, index) { %>
+        <% if (index > 0) { %>
+          <span aria-hidden="true">/</span>
+        <% } %>
+        <a href="<%= crumb.href %>"><%= crumb.label %></a>
+      <% }) %>
       <span aria-hidden="true">/</span>
       <span class="project-breadcrumb__current" id="model-details-crumb"><%= page.fileName %></span>
     </nav>
 
     <header class="project-header">
       <h1 class="hubs-title" id="model-details-name"><%= page.fileName %></h1>
-      <p class="hubs-meta">Model details from BIM 360</p>
+      <p class="hubs-meta"><%= page.subtitle %></p>
     </header>
 
     <div class="model-actions">
-      <a class="hubs-button hubs-button--ghost" href="<%= page.viewHref %>">View model</a>
-      <a class="hubs-button hubs-button--ghost" href="<%= page.projectHref %>">Back to project</a>
+      <% page.actions.forEach(function (action) { %>
+        <a class="hubs-button hubs-button--ghost" href="<%= action.href %>"><%= action.label %></a>
+      <% }) %>
     </div>
 
     <div id="model-details-result" aria-live="polite">
@@ -38,7 +42,7 @@
           <div class="status__spinner" aria-hidden="true"></div>
           <div>
             <h2>Loading model details</h2>
-            <p class="hubs-hint">Reading project information and material quantities from BIM 360.</p>
+            <p class="hubs-hint"><%= page.loadingHint %></p>
           </div>
         </section>
       <% } else { %>

@@ -13,7 +13,9 @@ export const createApp = () => {
   app.set('view engine', 'ejs');
   app.set('views', viewsDir);
 
-  app.use(express.json());
+  // 1 MiB covers the largest /api/translate/uploads/complete body (one eTag
+  // per part, up to the 10,000-part S3 limit) while staying modest elsewhere.
+  app.use(express.json({ limit: '1mb' }));
 
   if (env.nodeEnv === 'production') {
     app.set('trust proxy', 1);

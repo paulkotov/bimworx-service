@@ -1,0 +1,155 @@
+.translate-page .app-shell__content {
+  overflow-y: auto;
+}
+
+.translate-main {
+  display: flex;
+  justify-content: center;
+  padding: 32px 24px 64px;
+}
+
+.translate-card {
+  width: min(560px, 100%);
+  padding: 28px 32px;
+  background: var(--color-card);
+  border-radius: 14px;
+  box-shadow: var(--shadow-card);
+}
+
+.translate-card h1 {
+  margin: 0 0 8px;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.translate-intro {
+  margin: 0 0 24px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-text-soft);
+}
+
+.translate-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.translate-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.translate-field input {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--color-text);
+  background: #fff;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+}
+
+.translate-field input:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+  border-color: var(--color-accent);
+}
+
+.translate-field input[type='file'] {
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.translate-hint {
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--color-text-soft);
+}
+
+.translate-submit {
+  align-self: flex-start;
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--color-accent);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.translate-submit:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+.translate-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.translate-progress {
+  width: 100%;
+  height: 8px;
+  margin-top: 20px;
+  appearance: none;
+  border: none;
+  border-radius: 999px;
+  background: #e5e7eb;
+  overflow: hidden;
+}
+
+.translate-progress[hidden] {
+  display: none;
+}
+
+.translate-progress::-webkit-progress-bar {
+  background: #e5e7eb;
+  border-radius: 999px;
+}
+
+.translate-progress::-webkit-progress-value {
+  background: var(--color-accent);
+  border-radius: 999px;
+  transition: width 0.2s ease;
+}
+
+.translate-progress::-moz-progress-bar {
+  background: var(--color-accent);
+  border-radius: 999px;
+}
+
+.translate-processing {
+  margin-top: 24px;
+}
+
+.translate-processing[hidden],
+#translate-result[hidden],
+.translate-progress[hidden] {
+  display: none;
+}
+
+.translate-processing__copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.translate-processing h2 {
+  margin: 0 0 4px;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.translate-processing .hubs-hint {
+  margin: 0;
+}
+
+#translate-result {
+  margin-top: 8px;
+}

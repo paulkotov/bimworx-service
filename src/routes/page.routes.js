@@ -8,6 +8,9 @@ import {
   renderFolder,
   renderItemViewer,
   renderItemDetails,
+  renderTranslate,
+  renderTranslationReport,
+  renderTranslationViewer,
 } from '../controllers/page.controller.js';
 
 export const pageRouter = Router();
@@ -17,6 +20,9 @@ pageRouter.get('/login', renderLogin);
 
 // Authenticated pages (redirect to /login when signed out).
 pageRouter.get('/', requireApsPage, renderHome);
+pageRouter.get('/translate/reports/view', requireApsPage, renderTranslationViewer);
+pageRouter.get('/translate/reports', requireApsPage, renderTranslationReport);
+pageRouter.get('/translate', requireApsPage, renderTranslate);
 pageRouter.get('/hubs', requireApsPage, renderHubs);
 pageRouter.get(
   '/hubs/:hubId/projects/:projectId',

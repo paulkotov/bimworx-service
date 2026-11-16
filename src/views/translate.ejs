@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title><%= title %></title>
+  <link rel="stylesheet" href="/styles.css" type="text/css" />
+  <link rel="stylesheet" href="/hubs.css" type="text/css" />
+  <link rel="stylesheet" href="/project.css" type="text/css" />
+  <link rel="stylesheet" href="/translate.css" type="text/css" />
+</head>
+
+<body class="app-shell translate-page">
+  <%- include('partials/header') %>
+
+  <main class="translate-main app-shell__content">
+    <section class="translate-card">
+      <h1>Translate a composite model</h1>
+      <p class="translate-intro">
+        Upload a single flat ZIP containing the host Revit file and every linked
+        <code>.rvt</code> (no nested folders inside the archive). The archive is
+        uploaded directly to Autodesk storage from your browser, then translated
+        for the viewer.
+      </p>
+
+      <form id="translate-form" class="translate-form" novalidate>
+        <label class="translate-field">
+          ZIP archive
+          <input type="file" id="translate-zip" accept=".zip" required />
+        </label>
+
+        <label class="translate-field">
+          Root file name
+          <input type="text" id="translate-root" placeholder="Tower.rvt" autocomplete="off" required />
+          <span class="translate-hint">Exact name of the host <code>.rvt</code> as it appears inside the ZIP.</span>
+        </label>
+
+        <button type="submit" id="translate-submit" class="translate-submit">Upload &amp; translate</button>
+      </form>
+
+      <div id="translate-processing" class="model-loader translate-processing" role="status" aria-live="polite" hidden>
+        <div class="status__spinner" id="translate-spinner" aria-hidden="true"></div>
+        <div class="translate-processing__copy">
+          <h2 id="translate-processing-title">Uploading</h2>
+          <p class="hubs-hint" id="translate-status"></p>
+          <progress id="translate-bar" class="translate-progress" max="100" value="0" hidden></progress>
+        </div>
+      </div>
+
+      <ul id="translate-result" class="project-contents" hidden>
+        <li class="project-entry">
+          <span class="project-entry__icon" aria-hidden="true">📄</span>
+          <div class="project-entry__body">
+            <span class="project-entry__name" id="translate-model-name"></span>
+            <span class="hubs-meta" id="translate-model-meta"></span>
+          </div>
+          <div class="project-entry__actions">
+            <a
+              id="translate-view"
+              class="project-entry__action project-entry__action--primary"
+              href="/translate/reports/view"
+            >
+              <span aria-hidden="true">👁</span>
+              <span class="project-entry__action-text">View</span>
+            </a>
+            <a
+              id="translate-details"
+              class="project-entry__action"
+              href="/translate/reports"
+            >
+              <span aria-hidden="true">ⓘ</span>
+              <span class="project-entry__action-text">Details</span>
+            </a>
+          </div>
+        </li>
+      </ul>
+    </section>
+  </main>
+
+  <script type="module">
+    import { uploadAndTranslate } from '/translate.js';
+
+    const TERMINAL = new Set(['success', 'failed', 'timeout']);
+    const MAX_POLLS = 200;
+    const POLL_INTERVAL = 3000;
+
+    const form = document.getElementById('translate-form');
+    const fileInput = document.getElementById('translate-zip');
+    const rootInput = document.getElementById('translate-root');
+    const submit = document.getElementById('translate-submit');
+    const processing = document.getElementById('translate-processing');
+    const processingTitle = document.getElementById('translate-processing-title');
+    const spinner = document.getElementById('translate-spinner');
+    const statusEl = document.getElementById('translate-status');
+    const bar = document.getElementById('translate-bar');
+    const result = document.getElementById('translate-result');
+    const modelName = document.getElementById('translate-model-name');
+    const modelMeta = document.getElementById('translate-model-meta');
+    const viewLink = document.getElementById('translate-view');
+    const detailsLink = document.getElementById('translate-details');
+
+    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+    const showProcessing = (title, text, { progress = false, failed = false } = {}) => {
+      processing.hidden = false;
+      spinner.hidden = failed;
+      processingTitle.textContent = title;
+      statusEl.textContent = text;
+      statusEl.classList.toggle('is-error', failed);
+      bar.hidden = !progress;
+    };
+
+    const showModel = (root, urn) => {
+      const params = new URLSearchParams({ urn, root });
+      const query = params.toString();
+      modelName.textContent = root;
+      modelMeta.textContent = 'Translating…';
+      viewLink.href = `/translate/reports/view?${query}`;
+      detailsLink.href = `/translate/reports?${query}`;
+      viewLink.title = `View ${root}`;
+      viewLink.setAttribute('aria-label', `View ${root}`);
+      detailsLink.title = `Details for ${root}`;
+      detailsLink.setAttribute('aria-label', `Details for ${root}`);
+      result.hidden = false;
+    };
+
+    const poll = async (urn) => {
+      for (let attempt = 0; attempt < MAX_POLLS; attempt += 1) {
+        const res = await fetch(`/api/translate/status?urn=${encodeURIComponent(urn)}`);
+        if (!res.ok) throw new Error('Could not read translation status.');
+        const { status } = await res.json();
+        statusEl.textContent = `Preparing the viewable… (${status})`;
+        if (TERMINAL.has(status)) return status;
+        await wait(POLL_INTERVAL);
+      }
+      return 'timeout';
+    };
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const file = fileInput.files[0];
+      const root = rootInput.value.trim();
+      if (!file || !root) {
+        showProcessing('Upload', 'Pick a ZIP archive and enter the root file name.', { failed: true });
+        return;
+      }
+
+      submit.disabled = true;
+      fileInput.disabled = true;
+      rootInput.disabled = true;
+      result.hidden = true;
+      bar.value = 0;
+      showProcessing('Uploading', `Uploading ${file.name}…`, { progress: true });
+
+      try {
+        const urn = await uploadAndTranslate(file, root, (percent) => {
+          bar.value = percent;
+          statusEl.textContent = percent >= 100
+            ? `Finishing ${file.name}…`
+            : `Uploading ${file.name}… ${percent}%`;
+        });
+
+        showModel(root, urn);
+        showProcessing('Translating', `Preparing ${root} for the viewer…`);
+
+        const final = await poll(urn);
+        if (final === 'success') {
+          processing.hidden = true;
+          modelMeta.textContent = 'Ready';
+        } else {
+          modelMeta.textContent = `Translation ${final}`;
+          showProcessing('Translation failed', `Translation ${final}.`, { failed: true });
+        }
+      } catch (err) {
+        showProcessing('Upload failed', err.message, { failed: true });
+      } finally {
+        submit.disabled = false;
+        fileInput.disabled = false;
+        rootInput.disabled = false;
+      }
+    });
+  </script>
+</body>
+
+</html>
