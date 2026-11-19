@@ -28,14 +28,54 @@
     const input = document.getElementById('upload-input');
     if (!endpoint || !btn || !input) return;
 
-    const uploadOne = async (file) => {
-      const url = endpoint + '?name=' + encodeURIComponent(file.name);
+    const putPart = async (uploadId, index, chunk) => {
+      const url = endpoint + '/part?uploadId=' + encodeURIComponent(uploadId) + '&index=' + index;
       const res = await fetch(url, {
-        method: 'POST',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/octet-stream' },
-        body: file,
+        body: chunk,
       });
       if (!res.ok) throw new Error(await readError(res));
+    };
+
+    const uploadOne = async (file) => {
+      const initRes = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ name: file.name, size: file.size }),
+      });
+      if (!initRes.ok) throw new Error(await readError(initRes));
+      const session = await initRes.json();
+      const parts = Number(session.parts);
+      const partSize = Number(session.partSize);
+      if (!parts || !partSize || !session.uploadId) {
+        throw new Error('Upload could not be started.');
+      }
+
+      for (let index = 0; index < parts; index += 1) {
+        const start = index * partSize;
+        const chunk = file.slice(start, Math.min(start + partSize, file.size));
+        let lastErr;
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          try {
+            await putPart(session.uploadId, index, chunk);
+            lastErr = undefined;
+            break;
+          } catch (err) {
+            lastErr = err;
+          }
+        }
+        if (lastErr) throw lastErr;
+        const percent = Math.round(((index + 1) / parts) * 100);
+        setStatus('Uploading ' + file.name + '… ' + percent + '%', false);
+      }
+
+      const doneRes = await fetch(endpoint + '/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ uploadId: session.uploadId }),
+      });
+      if (!doneRes.ok) throw new Error(await readError(doneRes));
     };
 
     btn.addEventListener('click', () => input.click());

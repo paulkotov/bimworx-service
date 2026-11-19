@@ -71,8 +71,9 @@ const readAecModel = async (urn, manifest, call) => {
 
 /**
  * Polls a Model Derivative fetch that may answer 202 (still preparing) before
- * it returns content. The first call omits forceget; retries set it so large
- * resources come through.
+ * it returns content. The first call omits forceget; a 202 (still preparing)
+ * or a 413 (payload too large) switches forceget on so large resources come
+ * through, matching the service's own "use the forceget parameter" hint.
  */
 const pollDerivative = async (fetchPage, timeoutMessage) => {
   const deadline = Date.now() + PROPERTIES_TIMEOUT_MS;
@@ -83,6 +84,11 @@ const pollDerivative = async (fetchPage, timeoutMessage) => {
     try {
       page = await fetchPage(forceget);
     } catch (cause) {
+      // Large models reject the unforced read with 413 and ask for forceget.
+      if (apsHttpStatus(cause) === 413 && forceget !== 'true') {
+        forceget = 'true';
+        continue;
+      }
       throw sanitizeApsError(cause, 'Failed to read model properties.');
     }
 
