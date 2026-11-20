@@ -7,7 +7,9 @@ import {
   getFolder,
   downloadItem,
   getItemDetails,
-  uploadToFolder,
+  createFolderUpload,
+  uploadFolderPart,
+  finishFolderUpload,
   deleteFolderItem,
 } from '../controllers/hubs.controller.js';
 
@@ -26,11 +28,21 @@ hubsRouter.get(
   '/:hubId/projects/:projectId/items/:itemId/download',
   downloadItem,
 );
-// Raw body: the browser sends the file bytes directly (name is in the query).
+// Multipart upload proxied through the server: the browser streams one part at
+// a time (same-origin), the server PUTs it to the signed S3 URL. No whole-file
+// buffering and no cross-origin dependency.
 hubsRouter.post(
   '/:hubId/projects/:projectId/folders/:folderId/upload',
-  raw({ type: '*/*', limit: '500mb' }),
-  uploadToFolder,
+  createFolderUpload,
+);
+hubsRouter.put(
+  '/:hubId/projects/:projectId/folders/:folderId/upload/part',
+  raw({ type: '*/*', limit: '12mb' }),
+  uploadFolderPart,
+);
+hubsRouter.post(
+  '/:hubId/projects/:projectId/folders/:folderId/upload/complete',
+  finishFolderUpload,
 );
 hubsRouter.delete(
   '/:hubId/projects/:projectId/items/:itemId',
