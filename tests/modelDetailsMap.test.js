@@ -638,7 +638,85 @@ describe('mapModelProperties', () => {
         { name: 'Окна', count: 2 },
         { name: 'Двери', count: 1 },
       ],
+      items: [
+        {
+          category: 'Двери',
+          family: '',
+          type: 'Одностворчатая 900x2100',
+          level: '(no level)',
+          count: 1,
+        },
+        {
+          category: 'Окна',
+          family: '',
+          type: 'Окно 1200x1500',
+          level: '(no level)',
+          count: 2,
+        },
+      ],
     });
+  });
+
+  it('lists shared parts by family and type from the object tree', () => {
+    const result = mapModelProperties(
+      [
+        { objectid: 10, name: 'Handle [10]', properties: {} },
+        { objectid: 11, name: 'Handle [11]', properties: {} },
+        { objectid: 12, name: 'Hinge [12]', properties: {} },
+      ],
+      {
+        fileName: 'a.rvt',
+        versionId: 'v',
+        objectTree: {
+          objects: [
+            {
+              name: 'Model',
+              objects: [
+                {
+                  name: 'Generic Models',
+                  objects: [
+                    {
+                      name: 'Door Hardware',
+                      objects: [
+                        {
+                          name: 'Lever handle',
+                          objects: [
+                            { objectid: 10, name: 'Handle [10]' },
+                            { objectid: 11, name: 'Handle [11]' },
+                          ],
+                        },
+                        {
+                          name: 'Butt hinge',
+                          objects: [{ objectid: 12, name: 'Hinge [12]' }],
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      },
+    );
+
+    assert.equal(result.pieces.count, 3);
+    assert.deepEqual(result.pieces.items, [
+      {
+        category: 'Generic Models',
+        family: 'Door Hardware',
+        type: 'Butt hinge',
+        level: '(no level)',
+        count: 1,
+      },
+      {
+        category: 'Generic Models',
+        family: 'Door Hardware',
+        type: 'Lever handle',
+        level: '(no level)',
+        count: 2,
+      },
+    ]);
   });
 
   it('labels a multi-layer element by its type when no material is exposed', () => {
@@ -678,7 +756,7 @@ describe('mapModelProperties', () => {
 
     assert.deepEqual(result.categories, [{ name: 'Крыши', count: 1 }]);
     // Rooms are spatial, not physical: excluded from both tables.
-    assert.deepEqual(result.pieces, { count: 0, categories: [] });
+    assert.deepEqual(result.pieces, { count: 0, categories: [], items: [] });
     assert.deepEqual(result.materials.levels, [
       {
         name: 'Кровля',

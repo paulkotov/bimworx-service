@@ -429,6 +429,40 @@ export const buildCategoryIndex = (tree) => {
   return map;
 };
 
+/**
+ * Category, family and type for each instance, taken from the object tree
+ * (Model → Category → Family → Type → Instance). Property values still win
+ * when the derivative wrote them on the element.
+ * @param {object | Array | null | undefined} tree
+ * @returns {Map<number, { category: string, family: string, type: string }>}
+ */
+export const buildElementIndex = (tree) => {
+  const map = new Map();
+
+  const visit = (node, ancestors) => {
+    if (!node || typeof node !== 'object') return;
+    const name = typeof node.name === 'string' ? node.name.trim() : '';
+    if (typeof node.objectid === 'number') {
+      map.set(node.objectid, {
+        category: ancestors[0] || '',
+        family: ancestors[1] || '',
+        type: ancestors.slice(2).filter(Boolean).join(' / '),
+      });
+    }
+    const next = name ? [...ancestors, name] : ancestors;
+    const children = Array.isArray(node.objects) ? node.objects : [];
+    for (const child of children) visit(child, next);
+  };
+
+  for (const root of treeRoots(tree)) {
+    const categories = Array.isArray(root?.objects) ? root.objects : [];
+    if (categories.length === 0) visit(root, []);
+    else for (const categoryNode of categories) visit(categoryNode, []);
+  }
+
+  return map;
+};
+
 const displayName = (name) => {
   if (typeof name !== 'string') return '';
   return name.replace(/\s*\[\d+\]\s*$/, '').trim();
@@ -697,8 +731,13 @@ export const mapModelProperties = (objects, identity = {}) => {
   const materialClassByName = new Map();
   const lengthUnit = inferLengthUnit(list);
   const categoryById = buildCategoryIndex(identity.objectTree);
+  const elementIndex = buildElementIndex(identity.objectTree);
 
-  const catOf = (object) => categoryLabel(object?.properties) || categoryById.get(object?.objectid) || '';
+  const catOf = (object) =>
+    categoryLabel(object?.properties) ||
+    elementIndex.get(object?.objectid)?.category ||
+    categoryById.get(object?.objectid) ||
+    '';
 
   const rememberLevel = (display, elevationM, aliases) => {
     const canonical = cleanLevelName(display);
@@ -759,6 +798,7 @@ export const mapModelProperties = (objects, identity = {}) => {
   const buckets = new Map();
   const categoryCounts = new Map();
   const pieceCounts = new Map();
+  const pieceItems = new Map();
   let elementCount = 0;
   let pieceCount = 0;
 
@@ -789,9 +829,15 @@ export const mapModelProperties = (objects, identity = {}) => {
       continue;
     }
 
+    const placed = elementIndex.get(object?.objectid) ?? {};
+    const family = findProp(object?.properties, FAMILY_KEYS) || placed.family || '';
+    const typeName = findProp(object?.properties, TYPE_NAME_KEYS) || placed.type || '';
+    const objectLabel = displayName(object?.name);
     const materialName =
       findProp(object?.properties, MATERIAL_KEYS) ||
-      findProp(object?.properties, TYPE_NAME_KEYS);
+      typeName ||
+      family ||
+      (objectLabel && objectLabel !== family ? objectLabel : '');
     if (!materialName) {
       diagnostics.noMaterialName += 1;
       continue;
@@ -804,10 +850,28 @@ export const mapModelProperties = (objects, identity = {}) => {
     const area = parseQuantity(rawArea ?? '', 'area') ?? 0;
     const length = parseQuantity(rawLength ?? '', 'length') ?? 0;
     const countedCategory = categoryName || NO_CATEGORY;
-    // Doors, windows and similar loadable families are modeled but carry no
-    // volume/area/length in the cloud derivative. They are real elements, so
-    // they are counted by category instead of being dropped from the report.
+    // Doors, windows, shared hardware and other loadable parts usually carry
+    // no volume. Keep each family and type, per level, instead of one total
+    // per category. Nested geometry that Revit did not publish as its own
+    // element is absent from the derivative and cannot be listed.
     if (!meaningful(volume, area, length)) {
+      const typeLabel = typeName || (objectLabel && objectLabel !== family ? objectLabel : '');
+      const referenced = levelReference(object.properties);
+      const record = referenced ? elevationByKey.get(levelKey(referenced)) : null;
+      const levelName = record?.name || referenced || NO_LEVEL;
+      const itemKey = [countedCategory, family, typeLabel, levelName].join('\0');
+      const existing = pieceItems.get(itemKey);
+      if (existing) {
+        existing.count += 1;
+      } else {
+        pieceItems.set(itemKey, {
+          category: countedCategory,
+          family,
+          type: typeLabel,
+          level: levelName,
+          count: 1,
+        });
+      }
       pieceCounts.set(countedCategory, (pieceCounts.get(countedCategory) ?? 0) + 1);
       pieceCount += 1;
       diagnostics.countOnly += 1;
@@ -865,6 +929,13 @@ export const mapModelProperties = (objects, identity = {}) => {
   const pieces = [...pieceCounts.entries()]
     .map(([name, count]) => ({ name, count }))
     .sort(byCount);
+  const items = [...pieceItems.values()].sort(
+    (left, right) =>
+      left.category.localeCompare(right.category) ||
+      left.family.localeCompare(right.family) ||
+      left.type.localeCompare(right.type) ||
+      left.level.localeCompare(right.level),
+  );
 
   const groups = new Map();
   for (const bucket of buckets.values()) {
@@ -896,7 +967,7 @@ export const mapModelProperties = (objects, identity = {}) => {
     units: { length: 'm', elevation: 'm', volume: 'm3', area: 'm2' },
     elementCount,
     categories,
-    pieces: { count: pieceCount, categories: pieces },
+    pieces: { count: pieceCount, categories: pieces, items },
     levels,
     materials: { byCategory: false, levels: materialLevels },
     diagnostics,

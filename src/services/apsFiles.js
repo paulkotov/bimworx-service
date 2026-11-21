@@ -1,5 +1,6 @@
 import { dataClient, ossClient } from './apsClients.js';
 import { listFolderContents } from './apsData.js';
+import { planParts, PART_SIZE } from './apsTranslation.js';
 import { createHttpError, sanitizeApsError } from '../utils/httpError.js';
 
 const STORAGE_URN_RE = /^urn:adsk\.objects:os\.object:([^/]+)\/(.+)$/;
@@ -243,46 +244,12 @@ const buildCreateVersionPayload = (itemId, fileName, storageId) => ({
   },
 });
 
-/**
- * Uploads a file into a folder. Creates a new item, or a new version when a
- * file with the same name already exists. Requires write access (enforced by
- * APS). Steps: allocate OSS storage -> upload bytes -> register item/version.
- * @returns {Promise<{ fileName: string, updated: boolean }>}
- */
-export const uploadFileToFolder = async (
-  projectId,
-  folderId,
-  fileName,
-  buffer,
-  accessToken,
-) => {
-  // 1. Allocate an OSS storage location targeted at the folder.
-  const storageId = await createFolderStorage(
-    projectId,
-    folderId,
-    fileName,
-    accessToken,
-  );
-  const parsed = parseStorageUrn(storageId);
-  if (!parsed) {
-    throw createHttpError(502, 'Failed to prepare upload.');
-  }
-
-  // 2. Upload the bytes to the storage object.
-  try {
-    await ossClient.uploadObject(parsed.bucketKey, parsed.objectKey, buffer, {
-      accessToken,
-    });
-  } catch (cause) {
-    throw sanitizeApsError(cause, 'Failed to upload the file to storage.');
-  }
-
-  // 3. Register it: new version if the name already exists, else a new item.
+/** Registers uploaded storage as a new item, or as a new version of the same name. */
+const registerStoredFile = async (projectId, folderId, fileName, storageId, accessToken) => {
   let existing = null;
   try {
     const contents = await listFolderContents(projectId, folderId, accessToken);
-    existing =
-      contents.find((e) => e.type === 'items' && e.name === fileName) ?? null;
+    existing = contents.find((entry) => entry.type === 'items' && entry.name === fileName) ?? null;
   } catch {
     existing = null;
   }
@@ -309,4 +276,148 @@ export const uploadFileToFolder = async (
       'The file was uploaded but could not be registered in the folder.',
     );
   }
+};
+
+const assertFileName = (fileName) => {
+  const name = typeof fileName === 'string' ? fileName.trim() : '';
+  if (!name || /[\\/]/.test(name)) {
+    throw createHttpError(400, 'A file name is required.', `Invalid file name: ${String(fileName)}`);
+  }
+  return name;
+};
+
+/**
+ * Starts a multipart folder upload. The browser streams each part to this
+ * service (not straight to S3), so there is no cross-origin dependency and the
+ * server only ever holds one 10 MiB part at a time.
+ * @returns the signed part URLs (kept server-side) plus the storage handle.
+ */
+export const beginFolderUpload = async (projectId, folderId, fileName, size, accessToken) => {
+  const name = assertFileName(fileName);
+  const parts = planParts(size);
+  const storageId = await createFolderStorage(projectId, folderId, name, accessToken);
+  const parsed = parseStorageUrn(storageId);
+  if (!parsed) {
+    throw createHttpError(502, 'Failed to prepare upload.');
+  }
+
+  let session;
+  try {
+    session = await ossClient.signedS3Upload(parsed.bucketKey, parsed.objectKey, {
+      parts,
+      minutesExpiration: 60,
+      accessToken,
+    });
+  } catch (cause) {
+    throw sanitizeApsError(cause, 'Failed to start the upload.');
+  }
+
+  return {
+    storageId,
+    uploadKey: session.uploadKey,
+    urls: session.urls,
+    parts,
+    partSize: PART_SIZE,
+    fileName: name,
+  };
+};
+
+/**
+ * PUTs one part's bytes to its signed S3 URL from the server and returns the
+ * ETag. Reading the ETag server-side avoids the browser CORS exposure rule.
+ */
+export const putUploadPart = async (url, buffer) => {
+  if (typeof url !== 'string' || !url) {
+    throw createHttpError(400, 'Upload part is not available.', 'missing part url');
+  }
+  let response;
+  try {
+    response = await fetch(url, {
+      method: 'PUT',
+      headers: { 'Content-Length': String(buffer.length) },
+      body: buffer,
+    });
+  } catch (cause) {
+    throw createHttpError(502, 'Failed to upload a part to storage.', cause?.message);
+  }
+  if (!response.ok) {
+    throw createHttpError(502, 'Failed to upload a part to storage.', `S3 PUT ${response.status}`);
+  }
+  const eTag = response.headers.get('etag');
+  if (!eTag) {
+    throw createHttpError(502, 'Storage did not return an ETag for a part.', 'missing ETag');
+  }
+  return eTag.replace(/"/g, '');
+};
+
+/**
+ * Finalizes a multipart folder upload and registers the item or version.
+ */
+export const completeFolderUpload = async ({
+  projectId,
+  folderId,
+  fileName,
+  storageId,
+  uploadKey,
+  size,
+  eTags,
+  accessToken,
+}) => {
+  const name = assertFileName(fileName);
+  planParts(size);
+  if (!storageId || !uploadKey) {
+    throw createHttpError(400, 'Upload session details are missing.', 'missing storageId/uploadKey');
+  }
+  if (!Array.isArray(eTags) || eTags.length === 0 || eTags.some((tag) => !tag)) {
+    throw createHttpError(400, 'Uploaded parts are missing.', 'missing eTags');
+  }
+  const parsed = parseStorageUrn(storageId);
+  if (!parsed) {
+    throw createHttpError(400, 'Upload session details are missing.', 'invalid storageId');
+  }
+
+  try {
+    await ossClient.completeSignedS3Upload(
+      parsed.bucketKey,
+      parsed.objectKey,
+      'application/octet-stream',
+      { uploadKey, size, eTags },
+      { accessToken },
+    );
+  } catch (cause) {
+    throw sanitizeApsError(cause, 'Failed to finalize the upload.');
+  }
+
+  return registerStoredFile(projectId, folderId, name, storageId, accessToken);
+};
+
+/**
+ * Uploads a file into a folder. Creates a new item, or a new version when a
+ * file with the same name already exists. Requires write access (enforced by
+ * APS). Steps: allocate OSS storage -> upload bytes -> register item/version.
+ * @returns {Promise<{ fileName: string, updated: boolean }>}
+ */
+export const uploadFileToFolder = async (
+  projectId,
+  folderId,
+  fileName,
+  buffer,
+  accessToken,
+) => {
+  const name = assertFileName(fileName);
+  const storageId = await createFolderStorage(projectId, folderId, name, accessToken);
+  const parsed = parseStorageUrn(storageId);
+  if (!parsed) {
+    throw createHttpError(502, 'Failed to prepare upload.');
+  }
+
+  try {
+    await ossClient.uploadObject(parsed.bucketKey, parsed.objectKey, buffer, {
+      accessToken,
+    });
+  } catch (cause) {
+    throw sanitizeApsError(cause, 'Failed to upload the file to storage.');
+  }
+
+  return registerStoredFile(projectId, folderId, name, storageId, accessToken);
 };

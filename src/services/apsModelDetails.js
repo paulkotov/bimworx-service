@@ -4,6 +4,8 @@ import { createHttpError, sanitizeApsError } from '../utils/httpError.js';
 import { derivativeClient } from './apsClients.js';
 import { listHubs } from './apsData.js';
 import { getItemViewInfo } from './apsFiles.js';
+import { getInternalToken } from './apsAuth.js';
+import { assertOwnObjectUrn, assertRootFilename } from './apsTranslation.js';
 import {
   countTreeObjects,
   findAecModelDataUrn,
@@ -69,8 +71,9 @@ const readAecModel = async (urn, manifest, call) => {
 
 /**
  * Polls a Model Derivative fetch that may answer 202 (still preparing) before
- * it returns content. The first call omits forceget; retries set it so large
- * resources come through.
+ * it returns content. The first call omits forceget; a 202 (still preparing)
+ * or a 413 (payload too large) switches forceget on so large resources come
+ * through, matching the service's own "use the forceget parameter" hint.
  */
 const pollDerivative = async (fetchPage, timeoutMessage) => {
   const deadline = Date.now() + PROPERTIES_TIMEOUT_MS;
@@ -81,6 +84,11 @@ const pollDerivative = async (fetchPage, timeoutMessage) => {
     try {
       page = await fetchPage(forceget);
     } catch (cause) {
+      // Large models reject the unforced read with 413 and ask for forceget.
+      if (apsHttpStatus(cause) === 413 && forceget !== 'true') {
+        forceget = 'true';
+        continue;
+      }
       throw sanitizeApsError(cause, 'Failed to read model properties.');
     }
 
@@ -129,9 +137,22 @@ const readObjectTree = async (urn, modelGuid, call) => {
 const loadItemModelData = async (hubId, projectId, itemId, accessToken) => {
   const viewInfo = await getItemViewInfo(projectId, itemId, accessToken);
   const region = await resolveRegion(hubId, accessToken);
+  const loaded = await loadDerivativeData({
+    urn: viewInfo.urn,
+    fileName: viewInfo.fileName,
+    accessToken,
+    region,
+  });
+  return { viewInfo, ...loaded };
+};
+
+/**
+ * Reads manifest, properties, object tree, and AECModelData for one derivative.
+ * On a non-ready translation it returns the state and no property data.
+ */
+const loadDerivativeData = async ({ urn, fileName, accessToken, region }) => {
   const call = { accessToken, region };
   const base = (translation, extra = {}) => ({
-    viewInfo,
     region,
     translation,
     objects: [],
@@ -142,7 +163,7 @@ const loadItemModelData = async (hubId, projectId, itemId, accessToken) => {
 
   let manifest;
   try {
-    manifest = await derivativeClient.getManifest(viewInfo.urn, call);
+    manifest = await derivativeClient.getManifest(urn, call);
   } catch (cause) {
     if (apsHttpStatus(cause) === 404) return base('missing');
     throw sanitizeApsError(cause, 'Failed to read the model manifest.');
@@ -153,23 +174,41 @@ const loadItemModelData = async (hubId, projectId, itemId, accessToken) => {
 
   let views;
   try {
-    views = await derivativeClient.getModelViews(viewInfo.urn, call);
+    views = await derivativeClient.getModelViews(urn, call);
   } catch (cause) {
     throw sanitizeApsError(cause, 'Failed to read the model views.');
   }
 
-  const { modelGuid, objectTree } = await pickRichest3dView(viewInfo, views, call);
+  const { modelGuid, objectTree } = await pickRichest3dView(
+    { urn, fileName },
+    views,
+    call,
+  );
   if (!modelGuid) return base('no-3d');
 
   const [objects, aecModel] = await Promise.all([
-    readProperties(viewInfo.urn, modelGuid, call),
-    readAecModel(viewInfo.urn, manifest, call),
+    readProperties(urn, modelGuid, call),
+    readAecModel(urn, manifest, call),
   ]);
   console.log(
-    `[model-details] ${viewInfo.fileName}: rawObjects=${objects.length} ` +
+    `[model-details] ${fileName}: rawObjects=${objects.length} ` +
       `aecModel=${aecModel ? 'yes' : 'no'} objectTree=${objectTree ? 'yes' : 'no'}`,
   );
   return base('success', { objects, aecModel, objectTree });
+};
+
+const toDetailsResult = ({ fileName, versionId, region, translation, objects, aecModel, objectTree }) => {
+  const result = { fileName, versionId, region, translation, report: null };
+  if (translation !== 'success') return result;
+
+  result.report = mapModelProperties(objects, {
+    fileName,
+    versionId,
+    aecModel,
+    objectTree,
+  });
+  logReportDiagnostics(fileName, result.report);
+  return result;
 };
 
 /**
@@ -236,28 +275,44 @@ const logViewSelection = (fileName, views, modelGuid, probes) => {
  * @returns {Promise<{ fileName: string, versionId: string, region: string, translation: string, report: object | null }>}
  */
 export const getItemModelDetails = async (hubId, projectId, itemId, accessToken) => {
-  const { viewInfo, region, translation, objects, aecModel, objectTree } =
-    await loadItemModelData(hubId, projectId, itemId, accessToken);
-  const base = (report) => ({
-    fileName: viewInfo.fileName,
-    versionId: viewInfo.versionId,
+  const loaded = await loadItemModelData(hubId, projectId, itemId, accessToken);
+  return toDetailsResult({
+    fileName: loaded.viewInfo.fileName,
+    versionId: loaded.viewInfo.versionId,
+    region: loaded.region,
+    translation: loaded.translation,
+    objects: loaded.objects,
+    aecModel: loaded.aecModel,
+    objectTree: loaded.objectTree,
+  });
+};
+
+/**
+ * Same material report as a hub item, read from a composite ZIP derivative
+ * in the app bucket. Uses the server write token; the browser never sees it.
+ * @param {string} urn viewer URN returned by the translation upload
+ * @param {string} [rootFilename] host .rvt name, used only as the report label
+ */
+export const getTranslatedModelDetails = async (urn, rootFilename) => {
+  const safeUrn = assertOwnObjectUrn(urn);
+  const fileName = rootFilename ? assertRootFilename(rootFilename) : 'Composite model';
+  const accessToken = await getInternalToken();
+  const region = derivativeRegion(env.aps.region);
+  const loaded = await loadDerivativeData({
+    urn: safeUrn,
+    fileName,
+    accessToken,
     region,
-    translation,
-    report,
   });
-
-  if (translation !== 'success') return base(null);
-
-  const report = mapModelProperties(objects, {
-    fileName: viewInfo.fileName,
-    versionId: viewInfo.versionId,
-    aecModel,
-    objectTree,
+  return toDetailsResult({
+    fileName,
+    versionId: null,
+    region: loaded.region,
+    translation: loaded.translation,
+    objects: loaded.objects,
+    aecModel: loaded.aecModel,
+    objectTree: loaded.objectTree,
   });
-
-  logReportDiagnostics(viewInfo.fileName, report);
-
-  return base(report);
 };
 
 /**

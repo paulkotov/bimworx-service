@@ -38,3 +38,34 @@ export const getViewerToken = async () => {
     throw sanitizeApsError(cause, 'Failed to obtain a viewer token from Autodesk.');
   }
 };
+
+/**
+ * Mints a 2-legged APS token with write + bucket scopes for the server-side
+ * translation pipeline (bucket + OSS upload + Model Derivative). This token is
+ * used ONLY inside services and is never handed to the browser.
+ * @returns {Promise<string>} the access token
+ */
+export const getInternalToken = async () => {
+  const { clientId, clientSecret } = env.aps;
+
+  if (!clientId || !clientSecret) {
+    throw createHttpError(
+      503,
+      'Translation is not configured.',
+      'APS credentials are not configured',
+    );
+  }
+
+  try {
+    const { access_token } = await authClient.getTwoLeggedToken(clientId, clientSecret, [
+      Scopes.DataRead,
+      Scopes.DataWrite,
+      Scopes.DataCreate,
+      Scopes.BucketCreate,
+      Scopes.BucketRead,
+    ]);
+    return access_token;
+  } catch (cause) {
+    throw sanitizeApsError(cause, 'Failed to authenticate with Autodesk.');
+  }
+};

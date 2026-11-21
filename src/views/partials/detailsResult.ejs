@@ -82,11 +82,42 @@
           </table>
         </div>
       <% } %>
+      <% if (page.report.hasPieceItems) { %>
+        <div class="model-table-wrap">
+          <table class="model-table">
+            <caption>
+              Doors, windows, hardware and other elements without a material
+              quantity, grouped by family and type
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">Level</th>
+                <th scope="col">Category</th>
+                <th scope="col">Family</th>
+                <th scope="col">Type</th>
+                <th class="is-num" scope="col">Count</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% page.report.pieceItems.forEach(function (item) { %>
+                <tr>
+                  <td><%= item.level %></td>
+                  <td><%= item.category %></td>
+                  <td><%= item.family %></td>
+                  <td><%= item.type %></td>
+                  <td class="is-num"><%= item.count %></td>
+                </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+      <% } %>
       <p class="hubs-hint model-detail-note">
-        Quantities come from BIM 360 element properties.
+        Quantities come from element properties.
         The takeoff counts elements with a material quantity (volume, area or
-        length); count-only elements (doors, windows and similar families) carry
-        no such quantity and are listed separately.
+        length). Doors, windows, shared hardware and similar parts are listed
+        by family and type. Geometry nested inside a family is included only
+        when Revit publishes it as its own element.
         This extract has no overall model size or bounding box.
       </p>
     </section>

@@ -50,6 +50,41 @@ Drive file ──download──▶ OSS object ──translate──▶ SVF2 deri
 
 * **Config:** `APS_CLIENT_ID`, `APS_CLIENT_SECRET`, `APS_REGION`.
 
+### 2.1 Composite Revit models (linked `.rvt` ZIP)
+
+A host Revit file plus its linked `.rvt` files can be translated together by
+uploading them as a **single flat ZIP** (no nested folders) and naming the host
+file at translation time. The user assembles the ZIP on their own machine; the
+archive is streamed **directly from the browser to Autodesk storage** via signed
+S3 URLs, so the service never buffers the bytes.
+
+Flow (page: `/translate`):
+
+1. `POST /api/translate/uploads` — the service ensures the app's persistent OSS
+   bucket exists and returns signed S3 part URLs for a new object (init).
+2. The browser `PUT`s each part straight to S3 (≥ 5 MiB per part, ≤ 10,000
+   parts) and collects each part's `ETag`.
+3. `POST /api/translate/uploads/complete` — the service finalizes the S3 object
+   and calls Model Derivative `startJob` with
+   `input: { urn, compressedUrn: true, rootFilename: "Host.rvt" }` and an SVF2
+   output. `rootFilename` must match the host file name inside the ZIP exactly.
+4. `GET /api/translate/status?urn=…` — poll until `success` / `failed` /
+   `timeout`.
+
+Requirements and gotchas:
+
+* **Flat archive**: links must sit next to the host at the ZIP root, and each
+  link's file name must match what the host references.
+* **Region consistency**: the OSS bucket region and the translation region must
+  match (`APS_REGION`, default `US`).
+* **S3 CORS**: the signed-URL S3 endpoint must allow cross-origin `PUT` and
+  expose the `ETag` response header, otherwise the upload cannot complete.
+* **Tokens**: translation uses a server-side 2-legged **write** token
+  (`data:*`, `bucket:*`) that never reaches the browser — the browser only
+  receives short-lived S3 signed URLs.
+
+* **Config:** `APS_BUCKET_KEY` (in addition to the pipeline vars above).
+
 ## 3. Client-side viewer
 
 * Autodesk Viewer 7 (loaded from the APS CDN in `views/index.ejs`).
